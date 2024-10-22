@@ -36,7 +36,7 @@ class Test(db.Model):
     time_limit = db.Column(db.Integer, nullable=True)  # Time limit in minutes
     shuffle_sentences = db.Column(db.Boolean, default=False)
     shuffle_paragraphs = db.Column(db.Boolean, default=False)
-    test_results = db.relationship('TestResult', backref='test', lazy=True)
+    test_results = db.relationship('TestResult', backref='test', lazy=True, cascade='all, delete-orphan')
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     learn_test_results = db.relationship('LearnTestResult', backref='test', lazy=True)
 
