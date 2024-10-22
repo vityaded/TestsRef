@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from ..models import Book, Test
 from .. import db
+from ..utils import admin_required
 import requests
 
 main_bp = Blueprint('main', __name__)
@@ -117,3 +118,13 @@ def autocomplete_test():
     tests = Test.query.filter(Test.name.ilike(f'%{q}%')).all()
     names = [test.name for test in tests]
     return jsonify(names)
+
+@main_bp.route('/book/delete/<int:book_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_book(book_id):
+    book = Book.query.get_or_404(book_id)
+    db.session.delete(book)
+    db.session.commit()
+    flash('Book deleted successfully.', 'success')
+    return redirect(url_for('main.index'))

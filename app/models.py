@@ -8,10 +8,10 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(150), nullable=False, unique=True)
     password = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
-    test_results = db.relationship('TestResult', backref='user', lazy=True)
-    tests_created = db.relationship('Test', backref='creator', lazy=True)
-    vocabulary = db.relationship('Vocabulary', backref='user', lazy=True)
-    learn_test_results = db.relationship('LearnTestResult', backref='user', lazy=True)
+    test_results = db.relationship('TestResult', backref='user', lazy=True, cascade='all, delete-orphan')
+    tests_created = db.relationship('Test', backref='creator', lazy=True, cascade='all, delete-orphan')
+    vocabulary = db.relationship('Vocabulary', backref='user', lazy=True, cascade='all, delete-orphan')
+    learn_test_results = db.relationship('LearnTestResult', backref='user', lazy=True, cascade='all, delete-orphan')
 
     def set_password(self, password):
         from werkzeug.security import generate_password_hash
@@ -25,7 +25,12 @@ class Book(db.Model):
     __tablename__ = 'book'  # Explicitly specify table name
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(150), nullable=False)
-    tests = db.relationship('Test', backref='book', lazy=True)
+    tests = db.relationship(
+        'Test',
+        backref='book',
+        lazy=True,
+        cascade='all, delete-orphan'
+    )
 
 class Test(db.Model):
     __tablename__ = 'test'  # Explicitly specify table name
@@ -38,7 +43,18 @@ class Test(db.Model):
     shuffle_paragraphs = db.Column(db.Boolean, default=False)
     test_results = db.relationship('TestResult', backref='test', lazy=True, cascade='all, delete-orphan')
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    learn_test_results = db.relationship('LearnTestResult', backref='test', lazy=True)
+    test_results = db.relationship(
+        'TestResult',
+        backref='test',
+        lazy=True,
+        cascade='all, delete-orphan'
+    )
+    learn_test_results = db.relationship(
+        'LearnTestResult',
+        backref='test',
+        lazy=True,
+        cascade='all, delete-orphan'
+    )
 
 class TestResult(db.Model):
     __tablename__ = 'test_result'  # Explicitly specify table name

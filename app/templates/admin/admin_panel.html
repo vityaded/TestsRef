@@ -4,55 +4,142 @@
 
 {% block content %}
   <h1 class="my-4">Admin Panel</h1>
-  <h2>Test Results</h2>
-  <!-- Display test results -->
-  <table class="table table-bordered">
-    <thead>
-      <tr>
-        <th>User</th>
-        <th>Test</th>
-        <th>Score</th>
-        <th>Date</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for result in test_results %}
-        <tr>
-          <td>{{ result.user.username }}</td>
-          <td>{{ result.test.name }}</td>
-          <td>{{ result.score }} / {{ result.total_questions }}</td>
-          <td>{{ result.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-        </tr>
-      {% else %}
-        <tr>
-          <td colspan="4">No test results available.</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
 
-  <h2>Learn Test Results</h2>
-  <!-- Display learn test results -->
-  <table class="table table-bordered">
-    <thead>
-      <tr>
-        <th>User</th>
-        <th>Test</th>
-        <th>Date Completed</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for result in learn_test_results %}
-        <tr>
-          <td>{{ result.user.username }}</td>
-          <td>{{ result.test.name }}</td>
-          <td>{{ result.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-        </tr>
-      {% else %}
-        <tr>
-          <td colspan="3">No learn test results available.</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <!-- Test Results Section -->
+  <div class="card mb-4">
+    <div class="card-header p-0" id="headingTestResults">
+      <h2 class="mb-0">
+        <button class="btn btn-link btn-block text-left text-decoration-none font-weight-bold" type="button" data-toggle="collapse" data-target="#collapseTestResults" aria-expanded="false" aria-controls="collapseTestResults">
+          Test Results
+        </button>
+      </h2>
+    </div>
+    <div id="collapseTestResults" class="collapse" aria-labelledby="headingTestResults">
+      <div class="card-body">
+        <!-- Test Results Table -->
+        <table class="table table-bordered">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Test</th>
+              <th>Score</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for result in test_results %}
+              <tr>
+                <td>{{ result.user.username }}</td>
+                <td>{{ result.test.name }}</td>
+                <td>{{ result.score }} / {{ result.total_questions }}</td>
+                <td>{{ result.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="4">No test results available.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Management Section -->
+  <div class="card mb-4">
+    <div class="card-header p-0" id="headingUserManagement">
+      <h2 class="mb-0">
+        <button class="btn btn-link btn-block text-left text-decoration-none font-weight-bold" type="button" data-toggle="collapse" data-target="#collapseUserManagement" aria-expanded="false" aria-controls="collapseUserManagement">
+          User Management
+        </button>
+      </h2>
+    </div>
+    <div id="collapseUserManagement" class="collapse" aria-labelledby="headingUserManagement">
+      <div class="card-body">
+        <!-- User Management Table -->
+        <table class="table table-bordered">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Admin Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for user in users %}
+              <tr>
+                <td>{{ user.username }}</td>
+                <td>
+                  {% if user.is_admin %}
+                    <span class="badge badge-success">Admin</span>
+                  {% else %}
+                    <span class="badge badge-secondary">Regular User</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if user.id != current_user.id %}
+                    {% if not user.is_admin %}
+                      <form action="{{ url_for('admin.promote_user', user_id=user.id) }}" method="post" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Promote {{ user.username }} to admin?');">Promote to Admin</button>
+                      </form>
+                    {% else %}
+                      <form action="{{ url_for('admin.demote_user', user_id=user.id) }}" method="post" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('Demote {{ user.username }} to regular user?');">Demote to User</button>
+                      </form>
+                    {% endif %}
+                    <form action="{{ url_for('admin.delete_user', user_id=user.id) }}" method="post" style="display: inline;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete {{ user.username }}? This action cannot be undone.');">Delete User</button>
+                    </form>
+                  {% else %}
+                    <span class="text-muted">You</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Learn Test Results Section -->
+  <div class="card mb-4">
+    <div class="card-header p-0" id="headingLearnTestResults">
+      <h2 class="mb-0">
+        <button class="btn btn-link btn-block text-left text-decoration-none font-weight-bold" type="button" data-toggle="collapse" data-target="#collapseLearnTestResults" aria-expanded="false" aria-controls="collapseLearnTestResults">
+          Learn Test Results
+        </button>
+      </h2>
+    </div>
+    <div id="collapseLearnTestResults" class="collapse" aria-labelledby="headingLearnTestResults">
+      <div class="card-body">
+        <!-- Learn Test Results Table -->
+        <table class="table table-bordered">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Test</th>
+              <th>Date Completed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for result in learn_test_results %}
+              <tr>
+                <td>{{ result.user.username }}</td>
+                <td>{{ result.test.name }}</td>
+                <td>{{ result.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="3">No learn test results available.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 {% endblock %}

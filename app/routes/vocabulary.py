@@ -9,12 +9,14 @@ from ..utils import normalize_text
 
 vocab_bp = Blueprint('vocab', __name__, url_prefix='/vocabulary')
 
+# Display all vocabulary words
 @vocab_bp.route('/')
 @login_required
 def my_vocabulary():
     vocab_words = Vocabulary.query.filter_by(user_id=current_user.id).all()
     return render_template('vocabulary/vocabulary.html', vocab_words=vocab_words)
 
+# Add a new word to the vocabulary
 @vocab_bp.route('/add', methods=['POST'])
 @login_required
 def add_to_vocabulary():
@@ -49,6 +51,7 @@ def add_to_vocabulary():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# Edit an existing word in the vocabulary
 @vocab_bp.route('/edit/<int:word_id>', methods=['GET', 'POST'])
 @login_required
 def edit_word(word_id):
@@ -67,6 +70,7 @@ def edit_word(word_id):
 
     return render_template('vocabulary/edit_word.html', form=form)
 
+# Delete a word from the vocabulary
 @vocab_bp.route('/delete/<int:word_id>', methods=['POST'])
 @login_required
 def delete_word(word_id):
@@ -80,100 +84,101 @@ def delete_word(word_id):
     flash('Word deleted successfully.', 'success')
     return redirect(url_for('vocab.my_vocabulary'))
 
+# Review vocabulary words
 @vocab_bp.route('/review', methods=['GET', 'POST'])
 @login_required
 def review():
-    # Fetch due words
-    today = datetime.utcnow()
-    due_words = Vocabulary.query.filter(
-        Vocabulary.user_id == current_user.id,
-        Vocabulary.next_review <= today
-    ).all()
+    while True:  # Loop to keep checking if there are due words
+        # Fetch due words
+        today = datetime.utcnow()
+        due_words = Vocabulary.query.filter(
+            Vocabulary.user_id == current_user.id,
+            Vocabulary.next_review <= today
+        ).all()
 
-    if not due_words:
-        flash('No words due for review today!', 'info')
-        return redirect(url_for('vocab.my_vocabulary'))
+        if not due_words:
+            flash('No more words due for review!', 'info')
+            return redirect(url_for('vocab.my_vocabulary'))
 
-    # Get the current word index from the session
-    current_word_index = session.get('current_word_index', 0)
-    total_words = len(due_words)
+        # Get the current word index from the session
+        current_word_index = session.get('current_word_index', 0)
 
-    # Retrieve the current word
-    if current_word_index < total_words:
+        # Reset the current_word_index if it is out of range
+        if current_word_index >= len(due_words):
+            current_word_index = 0
+            session['current_word_index'] = current_word_index
+
+        # Retrieve the current word
         word = due_words[current_word_index]
-    else:
-        # All words reviewed
-        flash('Review session completed!', 'success')
-        session.pop('current_word_index', None)
-        return redirect(url_for('vocab.my_vocabulary'))
 
-    # Determine the review stage
-    review_stage = word.learning_stage
+        # Determine the review stage
+        review_stage = word.learning_stage
 
-    if request.method == 'POST':
-        user_answer = request.form.get('answer', '').strip()
-        correct_answer = word.word.strip() if review_stage % 2 == 0 else word.translation.strip()
+        if request.method == 'POST':
+            user_answer = request.form.get('answer', '').strip()
+            correct_answer = word.word.strip() if review_stage % 2 == 0 else word.translation.strip()
 
-        # Normalize the text for comparison
-        normalized_user_answer = normalize_text(user_answer)
-        normalized_correct_answer = normalize_text(correct_answer)
+            # Normalize the text for comparison
+            normalized_user_answer = normalize_text(user_answer)
+            normalized_correct_answer = normalize_text(correct_answer)
 
-        if normalized_user_answer == normalized_correct_answer:
-            # Correct answer
-            word.learning_stage += 1
-            word.ease_factor = max(1.3, word.ease_factor - 0.2)  # Decrease ease factor for correct answers
-            word.interval = get_next_interval(word.learning_stage, word.ease_factor)
-            word.next_review = datetime.utcnow() + timedelta(days=word.interval)
-            db.session.commit()
-            flash('Correct!', 'success')
+            if normalized_user_answer == normalized_correct_answer:
+                # Correct answer: increase the learning stage
+                word.learning_stage += 1
+                word.ease_factor = max(1.3, word.ease_factor - 0.2)  # Decrease ease factor for correct answers
+                word.interval = get_next_interval(word.learning_stage, word.ease_factor)
+                word.next_review = datetime.utcnow() + timedelta(minutes=word.interval if word.learning_stage < 3 else word.interval * 24 * 60)
+                db.session.commit()
+                flash('Correct!', 'success')
+            else:
+                # Incorrect answer: reset learning stage to 0 and ease factor to default
+                word.learning_stage = 0  # Reset the word to the beginning
+                word.ease_factor = 2.5   # Reset ease factor to default
+                word.interval = get_next_interval(word.learning_stage, word.ease_factor)
+                word.next_review = datetime.utcnow() + timedelta(minutes=1)  # 1-minute reset
+                db.session.commit()
+                flash(f'Incorrect! The correct answer was "{correct_answer}". The word has been reset.', 'danger')
+
+            # Move to the next word
+            session['current_word_index'] = (current_word_index + 1) % len(due_words)
+            return redirect(url_for('vocab.review'))
+
+        # Prepare the question and options based on the review stage
+        if review_stage == 0:
+            # First review: Multiple choice translation
+            question = word.translation
+            options = get_options(word.word)
+            template = 'vocabulary/first_review.html'
+        elif review_stage == 1:
+            # Second review: Multiple choice original word
+            question = word.word
+            options = get_options(word.translation)
+            template = 'vocabulary/second_review.html'
+        elif review_stage == 2:
+            # Third review: Unscramble the word
+            question = word.translation
+            scrambled_word = ''.join(random.sample(word.word, len(word.word)))
+            session['scrambled_word'] = scrambled_word
+            template = 'vocabulary/third_review.html'
+        elif review_stage >= 3:
+            # Fourth and subsequent reviews: Type the word
+            question = word.translation if review_stage % 2 == 0 else word.word
+            template = 'vocabulary/fourth_review.html'
         else:
-            # Incorrect answer
-            word.learning_stage = max(0, word.learning_stage - 1)
-            word.ease_factor = min(2.5, word.ease_factor + 0.2)  # Increase ease factor for incorrect answers
-            word.interval = get_next_interval(word.learning_stage, word.ease_factor)
-            word.next_review = datetime.utcnow() + timedelta(days=word.interval)
-            db.session.commit()
-            flash(f'Incorrect! The correct answer was "{correct_answer}".', 'danger')
+            flash('Invalid review stage.', 'danger')
+            return redirect(url_for('vocab.my_vocabulary'))
 
-        # Move to the next word
-        session['current_word_index'] = current_word_index + 1
-        return redirect(url_for('vocab.review'))
+        return render_template(
+            template,
+            question=question,
+            options=options if 'options' in locals() else None,
+            scrambled_word=session.get('scrambled_word', None),
+            review_stage=review_stage,
+            current_word_number=current_word_index + 1,
+            total_words=len(due_words)
+        )
 
-    # Prepare the question and options based on the review stage
-    if review_stage == 0:
-        # First review: Multiple choice translation
-        question = word.translation
-        options = get_options(word.word)
-        template = 'vocabulary/first_review.html'
-    elif review_stage == 1:
-        # Second review: Multiple choice original word
-        question = word.word
-        options = get_options(word.translation)
-        template = 'vocabulary/second_review.html'
-    elif review_stage == 2:
-        # Third review: Unscramble the word
-        question = word.translation
-        scrambled_word = ''.join(random.sample(word.word, len(word.word)))
-        session['scrambled_word'] = scrambled_word
-        template = 'vocabulary/third_review.html'
-    elif review_stage >= 3:
-        # Fourth and subsequent reviews: Type the word
-        question = word.translation if review_stage % 2 == 0 else word.word
-        template = 'vocabulary/fourth_review.html'
-    else:
-        flash('Invalid review stage.', 'danger')
-        return redirect(url_for('vocab.my_vocabulary'))
-
-    return render_template(
-        template,
-        question=question,
-        options=options if 'options' in locals() else None,
-        scrambled_word=session.get('scrambled_word', None),
-        review_stage=review_stage,
-        current_word_number=current_word_index + 1,
-        total_words=total_words
-    )
-
+# Utility functions
 def get_options(correct_answer):
     # Generate a list of options including the correct answer
     options = [correct_answer]
@@ -187,10 +192,9 @@ def get_options(correct_answer):
     return options
 
 def get_next_interval(learning_stage, ease_factor):
-    # Simple spaced repetition algorithm
-    if learning_stage == 0:
-        return 1  # 1 day
-    elif learning_stage == 1:
-        return 3  # 3 days
+    # Learning stage: 1-minute interval
+    if learning_stage < 3:
+        return 1 / 60  # 1 minute in days format
+    # Long-term review: starts at 1 day, increases by 2.5x
     else:
-        return learning_stage * ease_factor
+        return 1 * (2.5 ** (learning_stage - 3))
