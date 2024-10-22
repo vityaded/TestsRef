@@ -1,0 +1,20 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Edit Word{% endblock %}
+
+{% block content %}
+  <h1 class="my-4">Edit Word</h1>
+  <form method="post">
+    {{ form.hidden_tag() }}
+    <div class="form-group">
+      {{ form.word.label }}
+      {{ form.word(class="form-control") }}
+    </div>
+    <div class="form-group">
+      {{ form.translation.label }}
+      {{ form.translation(class="form-control") }}
+    </div>
+    {{ form.submit(class="btn btn-primary") }}
+    <a href="{{ url_for('vocab.my_vocabulary') }}" class="btn btn-link">Back to Vocabulary</a>
+  </form>
+{% endblock %}

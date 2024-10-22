@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Take Test - {{ test.name }}{% endblock %}
+
+{% block content %}
+  <h1 class="my-4">{{ test.name }}</h1>
+
+  {% if time_limit %}
+    <div class="alert alert-info" id="timer">
+      Time Remaining: <span id="time">Loading...</span>
+    </div>
+  {% endif %}
+
+  {% if test_type == 'drag_and_drop' %}
+    <form method="post" id="test-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+
+      <p>Drag and drop the tiles into the correct order:</p>
+
+      <div class="tile-container">
+        <ul id="sortable" class="list-group">
+          {% for item in processed_content %}
+            <li class="tile list-group-item {{ item.class if score is not none else '' }}" data-id="{{ item.id }}">
+              <div class="tile-content">{{ item.content|safe }}</div>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <!-- Hidden input to store the order -->
+      <input type="hidden" name="item_order" id="item_order">
+
+      {% if score is none %}
+        <button type="submit" class="btn btn-primary mt-3">Submit Test</button>
+      {% endif %}
+    </form>
+
+    {% if score is not none %}
+      <h2 class="my-4">Your Score: {{ score }} / {{ total }}</h2>
+
+      <!-- Display user's order after submission -->
+      <h3>Your Submitted Order:</h3>
+      <ol>
+        {% for item in processed_content %}
+          <li class="{{ item.class }}">{{ item.content|safe }}</li>
+        {% endfor %}
+      </ol>
+
+      <!-- Display correct order after submission -->
+      <h3>Correct Order:</h3>
+      <ol>
+        {% for item_id in correct_order %}
+          <li>{{ correct_answers[item_id]|safe }}</li>
+        {% endfor %}
+      </ol>
+    {% endif %}
+  {% else %}
+    <form method="post" id="standard-test-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      
+      <div class="form-group">
+        {% for question in processed_content %}
+          <div class="mb-3">
+            {{ question|safe }}
+          </div>
+        {% endfor %}
+      </div>
+
+      <button type="submit" class="btn btn-primary">Submit Test</button>
+    </form>
+  {% endif %}
+
+  <a href="{{ url_for('index') }}" class="btn btn-link">Back to Home</a>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+
+  {% if time_limit %}
+  <script>
+    var timeLimit = {{ time_limit|default('null')|tojson }};
+    if (timeLimit !== null) {
+      var endTime = new Date().getTime() + timeLimit * 60 * 1000;
+      var x = setInterval(function() {
+        var now = new Date().getTime();
+        var distance = endTime - now;
+
+        var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+        document.getElementById("time").innerHTML = minutes + "m " + seconds + "s ";
+
+        if (distance <= 0) {
+          clearInterval(x);
+          document.querySelector("form").submit();
+        }
+      }, 1000);
+    } else {
+      document.getElementById("timer").style.display = 'none';
+    }
+  </script>
+  {% endif %}
+
+  {% if test_type == 'drag_and_drop' %}
+  <!-- Include jQuery UI for sortable functionality -->
+  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+
+  <!-- Include jQuery UI Touch Punch for mobile touch support -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui-touch-punch/0.2.3/jquery.ui.touch-punch.min.js"></script>
+
+  <script>
+    $(function() {
+      {% if score is not none %}
+        // After submission, disable drag-and-drop
+        $("#sortable").sortable("disable");
+      {% else %}
+        // Make the list sortable
+        $("#sortable").sortable();
+        $("#sortable").disableSelection();
+
+        // Capture the order when submitting the form
+        $("#test-form").on("submit", function() {
+          var itemOrder = $("#sortable").sortable("toArray", { attribute: "data-id" });
+          $("#item_order").val(itemOrder.join(","));
+        });
+      {% endif %}
+    });
+  </script>
+  {% endif %}
+{% endblock %}
+
+{% block styles %}
+  <style>
+    /* Correct answer highlighting */
+    .correct {
+      background-color: #d4edda !important; /* Light green */
+      border-color: #c3e6cb !important;
+    }
+    /* Incorrect answer highlighting */
+    .incorrect {
+      background-color: #f8d7da !important; /* Light red */
+      border-color: #f5c6cb !important;
+    }
+  </style>
+{% endblock %}
