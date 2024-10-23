@@ -1,15 +1,19 @@
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-
 {% extends "layouts/base.html" %}
 
 {% block title %}Learn Test - {{ test_name }}{% endblock %}
+
+{% block styles %}
+  {{ super() }}
+  <!-- Include Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+{% endblock %}
 
 {% block content %}
   <h1 class="my-4">{{ test_name }}</h1>
 
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-    
+
     <!-- Render the test content -->
     <div id="test-content">
       {% for line in processed_content %}
@@ -17,7 +21,7 @@
       {% endfor %}
     </div>
 
-    <button type="submit" class="btn btn-primary">Check Answers</button>
+    <button type="submit" class="btn btn-primary mt-3">Check Answers</button>
   </form>
 
   <!-- Translation and pronunciation popup -->
@@ -42,7 +46,7 @@
       const nodes = [];
 
       // Collect all text nodes
-      while (node = walker.nextNode()) {
+      while ((node = walker.nextNode())) {
         nodes.push(node);
       }
 
@@ -71,66 +75,65 @@
     }
 
     // Translation and pronunciation handling
-function translateAndPronounce(word, event) {
+    function translateAndPronounce(word, event) {
       fetch('{{ url_for('main.translate_word') }}?word=' + encodeURIComponent(word))
         .then(response => response.json())
         .then(data => {
-            if (data.translation) {
-                const popup = document.getElementById('translation-popup');
-                const translatedText = document.getElementById('translated-word');
-                translatedText.textContent = `${word} - ${data.translation}`;
+          if (data.translation) {
+            const popup = document.getElementById('translation-popup');
+            const translatedText = document.getElementById('translated-word');
+            translatedText.textContent = `${word} - ${data.translation}`;
 
-                // Position the popup next to the clicked word
-                popup.style.display = 'block';
-                popup.style.left = `${event.pageX}px`;
-                popup.style.top = `${event.pageY}px`;
+            // Position the popup next to the clicked word
+            popup.style.display = 'block';
+            popup.style.left = `${event.pageX}px`;
+            popup.style.top = `${event.pageY}px`;
 
-                const pronunciationBtn = document.getElementById('hear-pronunciation');
-                pronunciationBtn.onclick = function() {
-                    const audio = new Audio(`/tts?text=${encodeURIComponent(word)}&lang=en`);
-                    audio.play();
-                };
+            const pronunciationBtn = document.getElementById('hear-pronunciation');
+            pronunciationBtn.onclick = function() {
+              const audio = new Audio('{{ url_for('main.tts') }}?text=' + encodeURIComponent(word) + '&lang=en');
+              audio.play();
+            };
 
-                const addToVocabBtn = document.getElementById('add-to-vocab');
-                addToVocabBtn.onclick = function() {
-                    saveToVocabulary(word, data.translation);
-                };
-            } else {
-                alert('Translation not found');
-            }
+            const addToVocabBtn = document.getElementById('add-to-vocab');
+            addToVocabBtn.onclick = function() {
+              saveToVocabulary(word, data.translation);
+            };
+          } else {
+            alert('Translation not found');
+          }
         })
         .catch(error => console.error('Error:', error));
-}
+    }
 
     // Function to save the word to the user's personal vocabulary
-function saveToVocabulary(word, translation) {
-    if (!word || !translation) {
+    function saveToVocabulary(word, translation) {
+      if (!word || !translation) {
         alert('Cannot add an empty word or translation.');
         return;
-    }
+      }
 
       fetch('{{ url_for('vocab.add_to_vocabulary') }}', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
         },
         body: JSON.stringify({
-            word: word,
-            translation: translation
+          word: word,
+          translation: translation
         })
-    })
-    .then(response => response.json())
-    .then(data => {
+      })
+      .then(response => response.json())
+      .then(data => {
         if (data.success) {
-            alert(`${word} has been added to your vocabulary!`);
+          alert(`${word} has been added to your vocabulary!`);
         } else {
-            alert('Failed to add the word to your vocabulary.');
+          alert('Failed to add the word to your vocabulary.');
         }
-    })
-    .catch(error => console.error('Error:', error));
-}
-
+      })
+      .catch(error => console.error('Error:', error));
+    }
 
     // Once the document is loaded, wrap words in the content
     document.addEventListener('DOMContentLoaded', function() {
@@ -141,7 +144,7 @@ function saveToVocabulary(word, translation) {
     // Close popup when clicking outside
     document.addEventListener('click', function(event) {
       const popup = document.getElementById('translation-popup');
-      if (!popup.contains(event.target) && event.target.className !== 'word') {
+      if (!popup.contains(event.target) && !event.target.classList.contains('word')) {
         popup.style.display = 'none';
       }
     });

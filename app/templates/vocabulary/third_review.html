@@ -10,6 +10,7 @@
 
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="word_id" value="{{ word.id }}">
     <div class="form-group">
       <input type="text" name="answer" class="form-control" placeholder="Your answer" required>
     </div>

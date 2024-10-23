@@ -11,8 +11,21 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+import unicodedata
+import re
+
 def normalize_text(text):
-    import unicodedata
+    if not text:
+        return ''
+    # Normalize unicode characters (e.g., é to e)
     text = unicodedata.normalize('NFKD', text)
-    text = ''.join([c for c in text if c.isalpha()])
-    return text.lower()
+    # Remove diacritics (accents)
+    text = ''.join([c for c in text if not unicodedata.combining(c)])
+    # Convert to lowercase
+    text = text.lower()
+    # Remove punctuation (except apostrophes if needed)
+    text = re.sub(r'[^\w\s]', '', text)
+    # Remove extra whitespace
+    text = ' '.join(text.split())
+    return text
+

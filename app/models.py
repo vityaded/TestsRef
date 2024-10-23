@@ -1,6 +1,7 @@
 from . import db
 from flask_login import UserMixin
 from datetime import datetime, timezone
+from sqlalchemy.dialects.sqlite import JSON  # Use JSON type for SQLite
 
 class User(UserMixin, db.Model):
     __tablename__ = 'user'  # Explicitly specify table name
@@ -83,3 +84,16 @@ class LearnTestResult(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     test_id = db.Column(db.Integer, db.ForeignKey('test.id'), nullable=False)
     completed_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+class LearnTestProgress(db.Model):
+    __tablename__ = 'learn_test_progress'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    test_id = db.Column(db.Integer, db.ForeignKey('test.id'), nullable=False)
+    answers = db.Column(db.PickleType, nullable=False)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('learn_progress', lazy='dynamic'))
+    test = db.relationship('Test', backref=db.backref('learn_progress', lazy='dynamic'))
+
+    __table_args__ = (db.UniqueConstraint('user_id', 'test_id', name='_user_test_uc'),)

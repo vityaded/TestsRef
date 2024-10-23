@@ -5,13 +5,14 @@
 {% block content %}
   <h1 class="my-4">First Review</h1>
   <p>Word {{ current_word_number }} of {{ total_words }}</p>
-  <p><strong>Translate the following word:</strong> {{ question }}</p>
+  <p><strong>Select the correct word for:</strong> {{ question }}</p>
 
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="word_id" value="{{ word.id }}">
     {% for option in options %}
       <div class="form-check">
-        <input class="form-check-input" type="radio" name="answer" id="option{{ loop.index }}" value="{{ option }}">
+        <input class="form-check-input" type="radio" name="answer" id="option{{ loop.index }}" value="{{ option }}" required>
         <label class="form-check-label" for="option{{ loop.index }}">
           {{ option }}
         </label>

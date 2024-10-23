@@ -52,30 +52,18 @@ def signup():
 # User login route
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    # Redirect to home if the user is already authenticated
     if current_user.is_authenticated:
-        flash('You are already signed in.', 'info')
         return redirect(url_for('main.index'))
-
     form = LoginForm()
-
     if form.validate_on_submit():
-        username = form.username.data
-        password = form.password.data
-
-        # Find the user by username
-        user = User.query.filter_by(username=username).first()
-
-        # Check if user exists and password matches
-        if user and check_password_hash(user.password, password):
-            # Log in the user
-            login_user(user)
-            flash(f'Welcome back, {user.username}!', 'success')
-            next_page = request.args.get('next')  # Redirect to the next page if available
-            return redirect(next_page or url_for('main.index'))
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and user.check_password(form.password.data):
+            login_user(user, remember=form.remember.data)  # Pass the remember value
+            flash('Logged in successfully.', 'success')
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('main.index'))
         else:
-            flash('Invalid username or password. Please try again.', 'danger')
-
+            flash('Invalid username or password.', 'danger')
     return render_template('auth/login.html', form=form)
 
 # User logout route
