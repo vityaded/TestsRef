@@ -92,12 +92,12 @@ def delete_test(test_id):
     flash('Test deleted successfully.', 'success')
     return redirect(url_for('main.index'))
 
-@tests_bp.route('/<int:test_id>', methods=['GET', 'POST'])
+@tests_bp.route('/test/<int:test_id>', methods=['GET', 'POST'])
 @login_required
 def take_test(test_id):
     test = Test.query.get_or_404(test_id)
     test_content = test.content
-    time_limit = test.time_limit  # Time limit in minutes
+    time_limit = test.time_limit
 
     # Initialize variables
     processed_content = []
@@ -105,7 +105,7 @@ def take_test(test_id):
     original_order = []
     question_counter = 1
 
-    # Function to replace answers with input fields or dropdowns
+    # Function to replace answers
     def replace_answers(line):
         nonlocal question_counter
         dropdown_pattern = r'#\s*\[([^\]]+)\]\s*([^\#]+)\s*#'
@@ -122,10 +122,8 @@ def take_test(test_id):
 
             if request.method == 'POST':
                 user_answer = request.form.get(qid, '').strip()
-                # Normalize answers
                 normalized_user_answer = normalize_text(user_answer)
                 normalized_correct_answer = normalize_text(correct_answer)
-
                 select_class = 'custom-select correct' if normalized_user_answer == normalized_correct_answer else 'custom-select incorrect'
                 disabled = 'disabled'
             else:
@@ -133,7 +131,7 @@ def take_test(test_id):
                 select_class = 'custom-select'
                 disabled = ''
 
-            select_html = f'<select name="{qid}" class="{select_class}" {disabled} style="display: inline-block; width: auto;">'
+            select_html = f'<select name="{qid}" class="{select_class}" {disabled}>'
             select_html += '<option value="">-- Select an option --</option>'
             for option in options:
                 normalized_option = normalize_text(option)
@@ -158,7 +156,6 @@ def take_test(test_id):
 
             if request.method == 'POST':
                 user_answer = request.form.get(qid, '')
-                # Normalize answers
                 normalized_user_answer = normalize_text(user_answer.strip())
                 normalized_correct_answer = normalize_text(correct_answer)
                 input_class = 'form-control correct' if normalized_user_answer == normalized_correct_answer else 'form-control incorrect'
@@ -168,7 +165,7 @@ def take_test(test_id):
                 input_class = 'form-control'
                 readonly = ''
 
-            input_html = f'<input type="text" name="{qid}" value="{user_answer}" class="{input_class}" style="width: auto;" {readonly}>'
+            input_html = f'<input type="text" name="{qid}" value="{user_answer}" class="{input_class}" {readonly}>'
 
             if request.method == 'POST' and normalized_user_answer != normalized_correct_answer:
                 input_html += f' <span class="correct-answer">(Correct answer: {correct_answer})</span>'
@@ -180,22 +177,52 @@ def take_test(test_id):
         line = re.sub(input_pattern, input_repl, line)
         return line
 
-    # Function to process the test content for drag-and-drop tests
+    # Function to process the test content
     def process_content(content):
         nonlocal question_counter, original_order, processed_content
         lines = content.splitlines()
 
-        if test.shuffle_sentences or test.shuffle_paragraphs:
-            # Implement shuffling logic here if needed
-            pass
+        if test.shuffle_sentences:
+            # Split content into sentences
+            sentences = []
+            for line in lines:
+                sentences.extend(re.split(r'(?<=[.!?])\s+', line.strip()))
+            # Store the original correct order using unique tile IDs
+            for idx, sentence in enumerate(sentences):
+                item_id = f'item_{idx + 1}'
+                original_order.append(item_id)
+                correct_answers[item_id] = sentence.strip()
+                processed_content.append({'id': item_id, 'content': sentence.strip()})
+            # Shuffle sentences
+            if request.method == 'GET':
+                random.shuffle(processed_content)
+        elif test.shuffle_paragraphs:
+            # Split content into paragraphs
+            paragraphs = [para.strip() for para in content.split('\n\n') if para.strip()]
+            # Store the original correct order using unique tile IDs
+            for idx, paragraph in enumerate(paragraphs):
+                item_id = f'item_{idx + 1}'
+                original_order.append(item_id)
+                correct_answers[item_id] = paragraph.strip()
+                processed_content.append({'id': item_id, 'content': paragraph.strip()})
+            # Shuffle paragraphs
+            if request.method == 'GET':
+                random.shuffle(processed_content)
         else:
-            # Default behavior (no shuffling)
-            for idx, line in enumerate(lines):
+            # Default behavior
+            for line in lines:
                 processed_line = replace_answers(line)
                 processed_content.append(processed_line)
 
-    # Process the test content
-    process_content(test_content)
+    # Determine test type and process content
+    if test.shuffle_sentences or test.shuffle_paragraphs:
+        test_type = 'drag_and_drop'
+        process_content(test_content)
+    else:
+        test_type = 'standard'
+        for line in test_content.splitlines():
+            processed_line = replace_answers(line)
+            processed_content.append(processed_line)
 
     total_questions = question_counter - 1
 
@@ -215,14 +242,49 @@ def take_test(test_id):
 
         # Calculate score
         score = 0
-        for qid, correct_answer in correct_answers.items():
-            user_answer = request.form.get(qid, '').strip()
-            # Normalize both answers
-            normalized_user_answer = normalize_text(user_answer)
-            normalized_correct_answer = normalize_text(correct_answer)
+        if test_type == 'drag_and_drop':
+            # Drag-and-drop scoring
+            user_order = request.form.get('item_order', '')
+            user_order_list = user_order.split(',')
 
-            if normalized_user_answer == normalized_correct_answer:
-                score += 1
+            if len(user_order_list) != len(original_order):
+                flash('Error: The number of items in your order does not match the original content.', 'danger')
+                return render_template(
+                    'tests/take_test.html',
+                    test=test,
+                    processed_content=processed_content,
+                    score=None,
+                    total=total_questions,
+                    correct_order=original_order,
+                    test_type=test_type,
+                    correct_answers=correct_answers
+                )
+
+            # Compare user order to original order
+            user_processed_content = []
+            for idx, item_id in enumerate(user_order_list):
+                item_content = correct_answers[item_id]
+                is_correct_position = item_id == original_order[idx]
+                item_class = 'correct' if is_correct_position else 'incorrect'
+                user_processed_content.append({
+                    'id': item_id,
+                    'content': item_content,
+                    'class': item_class
+                })
+                if is_correct_position:
+                    score += 1
+
+            # Update processed_content
+            processed_content = user_processed_content
+
+        else:
+            # Standard test scoring
+            for qid, correct_answer in correct_answers.items():
+                user_answer = request.form.get(qid, '')
+                normalized_user_answer = normalize_text(user_answer.strip())
+                normalized_correct_answer = normalize_text(correct_answer)
+                if normalized_user_answer == normalized_correct_answer:
+                    score += 1
 
         # Save test result
         test_result = TestResult(
@@ -244,13 +306,13 @@ def take_test(test_id):
             processed_content=processed_content,
             score=score,
             total=total_questions,
-            correct_order=None,
-            test_type='standard',
+            correct_order=original_order if test_type == 'drag_and_drop' else None,
+            test_type=test_type,
             correct_answers=correct_answers
         )
 
     else:
-        # GET request: Start test, store start time in session
+        # GET request
         session[f'start_time_{test_id}'] = datetime.now(timezone.utc).isoformat()
 
         return render_template(
@@ -261,7 +323,7 @@ def take_test(test_id):
             total=total_questions,
             time_limit=time_limit,
             correct_order=None,
-            test_type='standard',
+            test_type=test_type,
             correct_answers=correct_answers
         )
 

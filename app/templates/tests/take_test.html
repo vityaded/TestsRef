@@ -53,9 +53,11 @@
           <li>{{ correct_answers[item_id]|safe }}</li>
         {% endfor %}
       </ol>
+
+      <a href="{{ url_for('main.index') }}" class="btn btn-primary mt-3">Back to Home</a>
     {% endif %}
   {% else %}
-    <form method="post">
+    <form method="post" id="standard-test-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
       
       <div class="form-group">
@@ -70,10 +72,12 @@
         <button type="submit" class="btn btn-primary">Submit Test</button>
       {% else %}
         <h2 class="my-4">Your Score: {{ score }} / {{ total }}</h2>
-        <a href="{{ url_for('main.index') }}" class="btn btn-primary">Back to Home</a>
+        <a href="{{ url_for('main.index') }}" class="btn btn-primary mt-3">Back to Home</a>
       {% endif %}
     </form>
   {% endif %}
+
+  <a href="{{ url_for('main.index') }}" class="btn btn-link">Back to Home</a>
 {% endblock %}
 
 {% block scripts %}
@@ -105,6 +109,8 @@
   {% endif %}
 
   {% if test_type == 'drag_and_drop' %}
+  <!-- Include jQuery before jQuery UI -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <!-- Include jQuery UI for sortable functionality -->
   <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 
@@ -114,14 +120,14 @@
   <script>
     $(function() {
       {% if score is not none %}
-        // After submission, disable drag-and-drop
+        // Disable drag-and-drop after submission
         $("#sortable").sortable("disable");
       {% else %}
-        // Make the list sortable
+        // Initialize sortable
         $("#sortable").sortable();
         $("#sortable").disableSelection();
 
-        // Capture the order when submitting the form
+        // Capture order on form submit
         $("#test-form").on("submit", function() {
           var itemOrder = $("#sortable").sortable("toArray", { attribute: "data-id" });
           $("#item_order").val(itemOrder.join(","));
@@ -134,14 +140,12 @@
 
 {% block styles %}
   <style>
-    /* Correct answer highlighting */
     .correct {
-      background-color: #d4edda !important; /* Light green */
+      background-color: #d4edda !important;
       border-color: #c3e6cb !important;
     }
-    /* Incorrect answer highlighting */
     .incorrect {
-      background-color: #f8d7da !important; /* Light red */
+      background-color: #f8d7da !important;
       border-color: #f5c6cb !important;
     }
   </style>
