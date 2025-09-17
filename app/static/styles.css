@@ -222,3 +222,23 @@ footer {
   font-weight: bold;
   font-size: 1.1rem;
 }
+
+{% block styles %}
+<style>
+/* Styles for the fixed action button */
+.fixed-action-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+}
+
+.btn-lg.rounded-circle {
+  width: 80px;
+  height: 80px;
+  font-size: 40px;
+  line-height: 60px;
+  text-align: center;
+  padding: 0;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Games List{% endblock %}
+
+{% block content %}
+  <h1 class="my-4 text-center">Available Games</h1>
+
+  <div class="list-group">
+    {% if games %}
+      {% for game in games %}
+        <a href="{{ url_for('games.play', game_name=game.id) }}" class="list-group-item list-group-item-action">
+          {{ game.name }}
+        </a>
+      {% endfor %}
+    {% else %}
+      <p class="text-center">No games found!</p>
+    {% endif %}
+  </div>
+
+{% endblock %}

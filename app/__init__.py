@@ -30,12 +30,16 @@ def create_app():
     from .routes.tests import tests_bp
     from .routes.vocabulary import vocab_bp
     from .routes.admin import admin_bp
+    from. routes.reading import reading_bp
+    from .routes.games import games_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(tests_bp)
     app.register_blueprint(vocab_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(reading_bp)
+    app.register_blueprint(games_bp)
 
     # Set up Login Manager
     login_manager.login_view = 'auth.login'

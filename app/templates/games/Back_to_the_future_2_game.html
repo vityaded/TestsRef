@@ -1,0 +1,1766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Quest: Recon Patrol (Simplified)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind Configuration
+        tailwind.config = {
+          theme: {
+            extend: {
+              colors: {
+                'dark-bg': '#2c3e50',
+                'container-bg': '#34495e',
+                'light-text': '#ecf0f1',
+                'accent': '#1abc9c',      // Main action buttons
+                'accent-dark': '#16a085',
+                'highlight': '#f1c40f',    // Keyword highlight & Memory retry prompt
+                'location': '#95a5a6',     // Location text & Disabled button color
+                'danger': '#e74c3c',       // Restart/Fail/Error
+                'danger-dark': '#c0392b',
+                'success': '#2ecc71',      // Game success, Memory Match, "Listen carefully" button
+                'border-color': '#4a6572',
+                'info': '#3498db',         // Listening pulse/info messages
+              }
+            }
+          }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #scene-text {
+            min-height: 80px; /* Maintain minimum height */
+            border-left: 4px solid config('theme.colors.accent');
+            transition: background-color 0.5s ease, opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        #scene-text.speaking {
+            background-color: #4a6572; /* Indicate text is being spoken */
+        }
+        /* Used when showing Ukrainian during memory recall */
+        #scene-text.memory-recall-active {
+             border-left: 4px solid config('theme.colors.highlight');
+        }
+
+        button#restart-button {
+            background-color: config('theme.colors.danger');
+            margin-left: auto;
+            margin-right: auto;
+            width: fit-content;
+        }
+        button#restart-button:hover {
+             background-color: config('theme.colors.danger-dark');
+        }
+        .keyword-highlight {
+            color: config('theme.colors.highlight');
+            font-weight: bold;
+        }
+        .memory-match {
+             color: config('theme.colors.success'); /* Green for matched words */
+             font-weight: bold;
+        }
+        .location-text {
+             font-style: italic;
+             color: config('theme.colors.location');
+             display: block;
+             margin-top: 0.5rem;
+             font-size: 0.9em;
+        }
+        .game-over, .game-success { /* Combined common styles */
+            font-weight: bold;
+            text-align: center;
+            font-size: 1.2em;
+            margin-top: 1rem;
+        }
+        .game-over { color: config('theme.colors.danger'); }
+        .game-success { color: config('theme.colors.success'); }
+
+        #voice-button {
+            transition: background-color 0.3s ease;
+        }
+        #voice-button.listening {
+            background-color: config('theme.colors.info');
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; }
+        }
+        
+        #voice-status {
+            min-height: 1.5em; /* Ensure space for messages */
+            margin-top: 0.75rem;
+            text-align: center;
+            font-style: italic;
+            transition: color 0.3s ease;
+        }
+        /* Hide choice buttons during voice input phase */
+        #choices-container.hidden {
+            display: none;
+        }
+         /* Specific styling for choice buttons (kept simple as they aren't primary interaction) */
+         #choices-container button {
+            opacity: 0.7; /* Slightly faded as they are not primary */
+            cursor: default; /* Not clickable by default */
+         }
+
+
+        #start-challenge-btn { /* Renamed from enable-audio-btn */
+            display: block;
+            margin: 1rem auto;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+         /* Style when audio is enabled */
+        #start-challenge-btn.audio-enabled {
+            background-color: config('theme.colors.success'); /* Green */
+            cursor: default;
+         }
+         #start-challenge-btn.audio-enabled:hover {
+             background-color: config('theme.colors.success'); /* Stay green */
+         }
+         #start-challenge-btn:disabled {
+             background-color: config('theme.colors.location');
+             cursor: not-allowed;
+             opacity: 0.7;
+         }
+
+        #vocab-list-container {
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        #vocab-list-container ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            columns: 2;
+            -webkit-columns: 2;
+            -moz-columns: 2;
+        }
+        #vocab-list-container li {
+            margin-bottom: 0.3rem;
+            color: config('theme.colors.light-text');
+        }
+        #vocab-list-container li .ua-term {
+            color: config('theme.colors.accent');
+            font-weight: 500;
+        }
+        #vocab-list-container.hidden {
+           opacity: 0;
+           visibility: hidden;
+           height: 0;
+           overflow: hidden;
+           margin-bottom: 0; /* Collapse margin */
+           padding: 0; /* Collapse padding */
+           border: none; /* Collapse border */
+        }
+
+    </style>
+</head>
+<body class="bg-dark-bg text-light-text leading-relaxed">
+
+<div class="max-w-2xl mx-auto my-5 p-5 border border-border-color shadow-lg rounded-lg">
+
+    <button id="start-challenge-btn" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded">
+         Start the challenge 🚀
+    </button>
+
+    <div id="game-container" class="bg-container-bg p-6 rounded-md border border-border-color mt-4">
+        <h1 class="text-accent text-center text-2xl font-bold border-b-2 border-accent-dark pb-2 mb-5">
+            Recon Patrol
+        </h1>
+
+        <div id="vocab-list-container" class="bg-dark-bg p-3 mb-4 rounded border border-border-color text-sm hidden">
+            </div>
+        <div id="scene-text" class="bg-dark-bg p-4 rounded mb-6">
+            Loading...
+        </div>
+        <div id="choices-container" class="space-y-3 mt-4 hidden">
+            </div>
+        <div class="mt-6 text-center">
+             <button id="voice-button" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed">
+                 Speak Action 🎤
+             </button>
+             <div id="feedback-percentage-area" class="text-center font-semibold mt-2 min-h-[1.2em]">
+                </div>
+             <div id="voice-status" class="text-info"></div>
+        </div>
+        <div id="outcome-display" class="mt-4">
+            </div>
+    </div>
+</div>
+<script>
+// --- Game Data (Scenes) ---
+// (Keep gameData object as is - too large to include here, assumed present from original)
+const gameData = {
+  /* ---------- 0. THE ARRIVAL ---------- */
+  'start': {
+    text: {
+      en: "You are Marty McFly. You're with Jennifer in your new truck when suddenly, the DeLorean time machine appears in a flash of light! The door opens. It's Doc Brown, looking older and dressed in strange, colourful clothes. 'Marty! You've got to come back with me!' he says urgently. 'Back where?' you ask. Doc replies: 'Back to the future!' [Location: Hill Valley, 1985]",
+      ua: "Ти — Марті Макфлай. Ти з Дженніфер у своєму новому пікапі, коли раптом у спалаху світла з'являється машина часу DeLorean! Двері відчиняються. Це Док Браун, він виглядає старшим і одягнений у дивний, барвистий одяг. 'Марті! Ти мусиш повернутися зі мною!' — терміново каже він. 'Куди назад?' — питаєш ти. Док відповідає: 'Назад у майбутнє!' [Локація: Хілл-Веллі, 1985]"
+    },
+    choices: [
+      { text: "Get in the DeLorean with Doc and Jennifer.", nextScene: 'to_2015' },
+      { text: "Ask Doc what the problem is first.", nextScene: 'ask_doc_problem' }
+    ]
+  },
+  'ask_doc_problem': {
+    text: {
+      en: "'What's wrong, Doc? Are we okay in the future?' you ask. Doc sighs impatiently. 'You and Jennifer are fine, Marty. It's your kids! Something has to be done about your kids!' He explains your son, Marty Jr., is about to make a huge mistake. There's no time to waste!",
+      ua: "'Що не так, Док? З нами все гаразд у майбутньому?' — питаєш ти. Док нетерпляче зітхає. 'З тобою і Дженніфер все гаразд, Марті. Це твої діти! Треба щось робити з твоїми дітьми!' Він пояснює, що твій син, Марті-молодший, ось-ось зробить величезну помилку. Не можна гаяти часу!"
+    },
+    choices: [
+      { text: "Okay, let's go! Get in the DeLorean.", nextScene: 'to_2015' }
+    ]
+  },
+
+  /* ---------- 1. MISSION IN 2015 ---------- */
+  'to_2015': {
+    text: {
+      en: "You arrive in the sky-highways of 2015. Cars fly around you. Doc explains the mission: Marty Jr. looks exactly like you. He's going to be persuaded by Griff Tannen's gang to participate in a robbery. You must impersonate your son and refuse Griff's offer.",
+      ua: "Ви прибуваєте на небесні магістралі 2015 року. Навколо вас літають машини. Док пояснює місію: Марті-молодший виглядає точнісінько як ти. Його збирається переконати банда Гріффа Таннена взяти участь у пограбуванні. Ти повинен видати себе за свого сина і відмовити Гріффу."
+    },
+    choices: [
+      { text: "Go to the Cafe '80s where the meeting will happen.", nextScene: 'cafe_80s' },
+      { text: "Ask Doc for more details about Griff.", nextScene: 'griff_details' }
+    ]
+  },
+  'griff_details': {
+    text: {
+      en: "'Griff is Biff Tannen's grandson,' Doc warns. 'He's just as much of a bully, but maybe not as smart. Be careful, Marty. He has bionic implants.'",
+      ua: "'Гріфф — онук Біффа Таннена,' — попереджає Док. 'Він такий самий задирака, але, можливо, не такий розумний. Будь обережний, Марті. У нього біонічні імпланти.'"
+    },
+    choices: [
+      { text: "Okay, I'm ready. Go to the Cafe '80s.", nextScene: 'cafe_80s' }
+    ]
+  },
+  'cafe_80s': {
+    text: {
+      en: "You enter the Cafe '80s, a nostalgia-themed restaurant. You wear an auto-drying jacket and power-lacing shoes. You order a Pepsi Perfect. Soon, Griff and his gang arrive. 'McFly!' he shouts. 'You in or out?'",
+      ua: "Ти заходиш у 'Кафе '80-х', ресторан у стилі ностальгії. На тобі куртка з автосушкою та кросівки із самозав'язуючими шнурівками. Ти замовляєш 'Пепсі Перфект'. Незабаром прибуває Гріфф зі своєю бандою. 'Макфлай!' — кричить він. 'Ти з нами чи ні?'"
+    },
+    choices: [
+      { text: "Say 'Count me out, Griff.'", nextScene: 'refuse_griff' },
+      { text: "Try to act tough and ask for details.", nextScene: 'act_tough_griff' }
+    ]
+  },
+  'act_tough_griff': {
+    text: {
+      en: "You try to act tough. 'What's in it for me?' Griff laughs. 'What's in it for you is that I don't smash your face in! Now, are you in or out?' This isn't working.",
+      ua: "Ти намагаєшся поводитися круто. 'А що мені з цього?' — Гріфф сміється. 'Тобі з цього те, що я не розіб'ю тобі обличчя! Ну що, ти з нами чи ні?' Це не працює."
+    },
+    choices: [
+      { text: "Refuse him: 'Out.'", nextScene: 'refuse_griff' }
+    ]
+  },
+  'refuse_griff': {
+    text: {
+      en: "You refuse. Griff gets angry and a chase begins! You grab a kid's pink hoverboard to escape. Griff and his gang are on hoverboards too, trying to hit you with baseball bats!",
+      ua: "Ти відмовляєшся. Гріфф злиться, і починається погоня! Ти хапаєш рожевий говерборд у дитини, щоб втекти. Гріфф та його банда теж на говербордах і намагаються вдарити тебе бейсбольними битами!"
+    },
+    choices: [
+      { text: "Lure them over the pond at the Clock Tower.", nextScene: 'hoverboard_chase' },
+      { text: "Try to lose them in the flying traffic.", nextScene: 'hoverboard_chase_traffic' }
+    ]
+  },
+  'hoverboard_chase': {
+    text: {
+      en: "You fly the hoverboard over the water. Griff, not realizing hoverboards don't work on water, follows you with his gang. They all crash into the Clock Tower and are arrested. Mission successful!",
+      ua: "Ти летиш на говерборді над водою. Гріфф, не розуміючи, що говерборди не працюють на воді, летить за тобою зі своєю бандою. Вони всі врізаються в Годинникову вежу, і їх заарештовують. Місія успішна!"
+    },
+    choices: [
+      { text: "Meet up with Doc.", nextScene: 'buy_almanac' }
+    ]
+  },
+  'hoverboard_chase_traffic': {
+    text: {
+      en: "You try to weave through the flying cars, but Griff is reckless! He causes a small crash. Police drones are everywhere. You manage to escape, and Griff's gang is caught. Mission successful!",
+      ua: "Ти намагаєшся маневрувати між літаючими машинами, але Гріфф безрозсудний! Він спричиняє невелику аварію. Поліцейські дрони всюди. Тобі вдається втекти, а банду Гріффа ловлять. Місія успішна!"
+    },
+    choices: [
+      { text: "Meet up with Doc.", nextScene: 'buy_almanac' }
+    ]
+  },
+
+  /* ---------- 2. THE ALMANAC & ALTERNATE 1985 ---------- */
+  'buy_almanac': {
+    text: {
+      en: "While waiting for Doc, you see a shop selling a 'Gray's Sports Almanac', a book with all sports results from 1950-2000. You buy it, thinking you can make a few easy bets. Doc finds it and explains it's too dangerous; it could create a time paradox. He throws it in the bin.",
+      ua: "Чекаючи на Дока, ти бачиш магазин, де продається 'Спортивний альманах Грея', книга з усіма спортивними результатами з 1950 по 2000 рік. Ти купуєш її, думаючи, що зможеш зробити кілька легких ставок. Док знаходить її і пояснює, що це занадто небезпечно; це може створити часовий парадокс. Він викидає її у смітник."
+    },
+    choices: [
+      { text: "Agree with Doc and prepare to go back to 1985.", nextScene: 'return_to_1985' }
+    ]
+  },
+  'return_to_1985': {
+    text: {
+      en: "You, Doc, and Jennifer (who Doc rescued and sedated) travel back to 1985. But something is wrong. The neighbourhood is run-down. There are bars on the windows of your house. This isn't the 1985 you left. It's a dystopian, alternate reality!",
+      ua: "Ти, Док і Дженніфер (яку Док врятував і приспав) повертаєтеся у 1985 рік. Але щось не так. Район занедбаний. На вікнах твого будинку грати. Це не той 1985-й, який ти покинув. Це похмура, альтернативна реальність!"
+    },
+    choices: [
+      { text: "Investigate your house.", nextScene: 'investigate_house' },
+      { text: "Find Doc. He must know what happened.", nextScene: 'find_doc_alt1985' }
+    ]
+  },
+  'investigate_house': {
+    text: {
+      en: "Your house is owned by another family. They tell you to get lost. You see a news report: your father, George McFly, was murdered years ago. Your mother, Lorraine, is married to... Biff Tannen! Biff is now a rich and powerful casino owner.",
+      ua: "Твій будинок належить іншій родині. Вони кажуть тобі забиратися. Ти бачиш у новинах: твій батько, Джордж Макфлай, був убитий багато років тому. Твоя мати, Лоррейн, одружена з... Біффом Танненом! Біфф тепер багатий і впливовий власник казино."
+    },
+    choices: [
+      { text: "This is a nightmare. Find Doc!", nextScene: 'find_doc_alt1985' }
+    ]
+  },
+  'find_doc_alt1985': {
+    text: {
+      en: "You find Doc. He explains that while you were rescuing Jennifer in 2015, old Biff must have stolen the DeLorean, gone back in time, and given the sports almanac to his younger self. That's how Biff became rich and powerful, creating this terrible alternate timeline.",
+      ua: "Ти знаходиш Дока. Він пояснює, що поки ви рятували Дженніфер у 2015-му, старий Біфф, мабуть, вкрав DeLorean, повернувся в минуле і віддав спортивний альманах молодому собі. Ось як Біфф став багатим і могутнім, створивши цю жахливу альтернативну часову лінію."
+    },
+    choices: [
+      { text: "We have to go back to the past and fix it!", nextScene: 'to_1955' }
+    ]
+  },
+
+  /* ---------- 3. BACK TO 1955 ---------- */
+  'to_1955': {
+    text: {
+      en: "Doc figures out the exact day old Biff gave young Biff the almanac: November 12th, 1955. The same day you were already there for the first movie! You must travel back to 1955, find Biff, and get the almanac back without letting your other self see you.",
+      ua: "Док з'ясовує точний день, коли старий Біфф дав молодому Біффу альманах: 12 листопада 1955 року. Той самий день, коли ти вже був там у першому фільмі! Ти мусиш повернутися у 1955 рік, знайти Біффа і забрати альманах, не дозволивши своєму іншому 'я' тебе побачити."
+    },
+    choices: [
+      { text: "Travel to November 12th, 1955.", nextScene: 'arrive_1955' }
+    ]
+  },
+  'arrive_1955': {
+    text: {
+      en: "You arrive in 1955. The main event of the night is the 'Enchantment Under the Sea' high school dance. That's where Biff will be. Your mission: get the almanac.",
+      ua: "Ви прибуваєте в 1955 рік. Головна подія вечора — шкільний бал 'Морські чари'. Саме там буде Біфф. Твоя місія: дістати альманах."
+    },
+    choices: [
+      { text: "Infiltrate the high school dance.", nextScene: 'infiltrate_dance' },
+      { text: "Try to find Biff before the dance.", nextScene: 'find_biff_before' }
+    ]
+  },
+  'infiltrate_dance': {
+    text: {
+      en: "You sneak into the dance. It's exactly as you remember. You see Biff's gang bullying your dad, George. And on stage... it's you! Your other self is playing 'Johnny B. Goode'. You have to get the almanac from Biff without disrupting these key events.",
+      ua: "Ти проникаєш на бал. Все точнісінько так, як ти пам'ятаєш. Ти бачиш, як банда Біффа знущається з твого тата, Джорджа. А на сцені... це ти! Твоє інше 'я' грає 'Johnny B. Goode'. Ти маєш забрати альманах у Біффа, не порушивши ці ключові події."
+    },
+    choices: [
+      { text: "Try to trip Biff and grab the almanac.", nextScene: 'trip_biff' },
+      { text: "Wait for Biff to be alone.", nextScene: 'wait_biff_alone' }
+    ]
+  },
+  'trip_biff': {
+    text: {
+      en: "You trip Biff. He falls, but his gang grabs you. 'Hey, you look familiar!' one says. You manage to break free, but you didn't get the almanac. Biff is now suspicious.",
+      ua: "Ти ставиш підніжку Біффу. Він падає, але його банда хапає тебе. 'Гей, ти виглядаєш знайомо!' — каже один. Тобі вдається вирватися, але альманах ти не дістав. Біфф тепер підозрілий."
+    },
+    choices: [
+      { text: "You have to try again. Wait for another chance.", nextScene: 'wait_biff_alone' }
+    ]
+  },
+  'wait_biff_alone': {
+    text: {
+      en: "You watch as Mr. Strickland, the principal, catches Biff drinking and drags him away. This is your chance! You follow them to his office.",
+      ua: "Ти спостерігаєш, як містер Стрікленд, директор, ловить Біффа за розпиванням і тягне його геть. Це твій шанс! Ти йдеш за ними до його кабінету."
+    },
+    choices: [
+      { text: "Try to steal the almanac in the office.", nextScene: 'steal_office' }
+    ]
+  },
+  'steal_office': {
+    text: {
+      en: "While Strickland is distracted, you snatch the almanac! Biff sees you at the last second. 'Hey! Get back here!' He chases you out of the school.",
+      ua: "Поки Стрікленд відволікся, ти хапаєш альманах! Біфф бачить тебе в останню секунду. 'Гей! Повернись!' Він женеться за тобою зі школи."
+    },
+    choices: [
+      { text: "Escape on your hoverboard!", nextScene: 'final_chase' }
+    ]
+  },
+
+  /* ---------- 4. FINAL CHASE & END ---------- */
+  'final_chase': {
+    text: {
+      en: "You jump on the hoverboard Doc left for you. Biff gets in his car and chases you through the streets and into the River Road tunnel. It's a dangerous chase!",
+      ua: "Ти стрибаєш на говерборд, який залишив для тебе Док. Біфф сідає в машину і женеться за тобою вулицями і в тунель на Рівер-Роуд. Це небезпечна погоня!"
+    },
+    choices: [
+      { text: "Get the almanac from Biff in the tunnel.", nextScene: 'get_almanac_tunnel' }
+    ]
+  },
+  'get_almanac_tunnel': {
+    text: {
+      en: "As Biff tries to run you down, Doc flies the DeLorean above. You grab onto a rope, snatch the almanac from Biff's car, and fly up to safety just as Biff crashes into a manure truck! You got it! You burn the almanac, and reality begins to correct itself.",
+      ua: "Коли Біфф намагається тебе збити, Док летить на DeLorean вгорі. Ти хапаєшся за мотузку, вириваєш альманах з машини Біффа і злітаєш у безпеку саме тоді, коли Біфф врізається у вантажівку з гноєм! Ти дістав його! Ти спалюєш альманах, і реальність починає виправлятися."
+    },
+    choices: [
+      { text: "Head back to 1985!", nextScene: 'final_lightning' }
+    ]
+  },
+  'final_lightning': {
+    text: {
+      en: "You are celebrating with Doc in the flying DeLorean during a massive thunderstorm. Suddenly, a bolt of lightning strikes the car! *ZAP!* The DeLorean disappears in a flash of light!",
+      ua: "Ти святкуєш з Доком у літаючому DeLorean під час потужної грози. Раптом у машину вдаряє блискавка! *ДЗЗЗ!* DeLorean зникає у спалаху світла!"
+    },
+    choices: [
+      { text: "You're stranded on the ground in 1955. What now?", nextScene: 'western_union' }
+    ]
+  },
+  'western_union': {
+    text: {
+      en: "As you stand in the rain, shocked, a car pulls up. A man in a Western Union uniform gets out. 'Marty McFly?' he asks. He hands you a letter. He explains he was instructed to deliver this letter to this exact spot at this exact time... 70 years ago. You open it. It's from Doc! He's alive... in 1885!",
+      ua: "Поки ти стоїш під дощем, шокований, під'їжджає машина. Виходить чоловік в уніформі 'Вестерн Юніон'. 'Марті Макфлай?' — питає він. Він вручає тобі листа. Він пояснює, що йому було доручено доставити цей лист у це саме місце в цей самий час... 70 років тому. Ти відкриваєш його. Це від Дока! Він живий... у 1885 році!"
+    },
+    choices: [
+      { text: "Oh no! I have to find the 1955 Doc for help!", nextScene: 'end_success' }
+    ]
+  },
+
+  /* ---------- END STATE ---------- */
+  'end_success': {
+    text: {
+      en: "You've fixed the timeline and saved your family, but now Doc is trapped in the Old West. Your adventure is far from over... but for now, you've survived the paradoxes of Back to the Future Part II! <span class='game-success'>TO BE CONTINUED...</span>",
+      ua: "Ти виправив часову лінію і врятував свою сім'ю, але тепер Док у пастці на Дикому Заході. Твоя пригода ще далеко не закінчена... але наразі ти пережив парадокси 'Назад у майбутнє 2'! <span class='game-success'>ДАЛІ БУДЕ...</span>"
+    },
+    choices: [
+      { text: "Play Again?", nextScene: 'start' }
+    ]
+  },
+
+   'find_biff_before': { // Optional side path
+     text: {
+       en: "You try to find Biff around town before the dance. You spot him talking with his gang, already looking at the almanac. Trying to get it from him here, surrounded by his friends, seems impossible. It's better to wait for the dance.",
+       ua: "Ти намагаєшся знайти Біффа в місті перед балом. Ти помічаєш, як він розмовляє зі своєю бандою, вже розглядаючи альманах. Спроба забрати його тут, в оточенні його друзів, здається неможливою. Краще почекати до балу."
+     },
+     choices: [
+       { text: "Go to the school dance.", nextScene: 'infiltrate_dance' }
+     ]
+   }
+}; // End of gameData
+
+
+
+// --- Vocabulary Data ---
+// (Keep vocabulary and vocabTranslations objects as is - assumed present)
+// Vocabulary based on "Back to the Future Part II"
+const vocabulary = [
+  // Key Characters & People
+  "Marty McFly", "Doc Brown", "Jennifer Parker", "Biff Tannen", "Griff Tannen",
+  "Lorraine Baines", "George McFly", "Marty Jr.", "Marlene McFly", "gang",
+
+  // Technology & Time Travel
+  "DeLorean", "time machine", "flux capacitor", "time circuits", "Mr. Fusion",
+  "plutonium", "hoverboard", "hover conversion", "auto-drying jacket", "power laces",
+  "time travel", "paradox", "timeline", "alternate reality", "dystopian",
+
+  // Key Items & Objects
+  "Gray's Sports Almanac", "almanac", "receipt", "wallet", "cane", "matchbook",
+  "Pepsi Perfect", "Jaws 19", "hologram",
+
+  // Locations
+  "Hill Valley", "Clock Tower", "Cafe '80s", "Lyon Estates", "Biff's Pleasure Paradise Casino",
+  "Enchantment Under the Sea Dance", "high school", "tunnel",
+
+  // Actions & Concepts
+  "future", "past", "present", "consequences", "mission", "impersonate",
+  "chase", "bet", "gamble", "faint", "knock out", "steal", "erase", "fade",
+  "lightning", "disappear", "strife"
+];
+
+// Translations for the vocabulary
+// Translations for the Back to the Future II vocabulary (Ukrainian)
+const vocabTranslations = {
+  // Key Characters & People
+  "Marty McFly": "Марті Макфлай", "Doc Brown": "Док Браун", "Jennifer Parker": "Дженніфер Паркер",
+  "Biff Tannen": "Біфф Таннен", "Griff Tannen": "Гріфф Таннен", "Lorraine Baines": "Лоррейн Бейнс",
+  "George McFly": "Джордж Макфлай", "Marty Jr.": "Марті-молодший", "Marlene McFly": "Марлін Макфлай", "gang": "банда",
+
+  // Technology & Time Travel
+  "DeLorean": "Делоріан", "time machine": "машина часу", "flux capacitor": "потоковий конденсатор",
+  "time circuits": "часові контури", "Mr. Fusion": "Містер Ф'южн / термоядерний реактор", "plutonium": "плутоній",
+  "hoverboard": "говерборд", "hover conversion": "говер-конверсія (переобладнання для польоту)",
+  "auto-drying jacket": "куртка з автосушкою", "power laces": "самозав'язуючі шнурівки", "time travel": "подорож у часі",
+  "paradox": "парадокс", "timeline": "часова лінія", "alternate reality": "альтернативна реальність",
+  "dystopian": "антиутопічний / похмурий",
+
+  // Key Items & Objects
+  "Gray's Sports Almanac": "Спортивний альманах Грея", "almanac": "альманах", "receipt": "чек / квитанція",
+  "wallet": "гаманець", "cane": "тростина / палиця", "matchbook": "коробок сірників", "Pepsi Perfect": "Пепсі Перфект",
+  "Jaws 19": "Щелепи 19", "hologram": "голограма",
+
+  // Locations
+  "Hill Valley": "Хілл-Веллі", "Clock Tower": "Годинникова вежа", "Cafe '80s": "Кафе '80-х",
+  "Lyon Estates": "Ліонські маєтки", "Biff's Pleasure Paradise Casino": "Казино 'Рай насолоди' Біффа",
+  "Enchantment Under the Sea Dance": "Бал 'Морські чари'", "high school": "старша школа", "tunnel": "тунель",
+
+  // Actions & Concepts
+  "future": "майбутнє", "past": "минуле", "present": "теперішнє", "consequences": "наслідки",
+  "mission": "місія / завдання", "impersonate": "видавати себе за іншого", "chase": "погоня",
+  "bet": "парі / ставка", "gamble": "азартна гра", "faint": "зомліти", "knock out": "нокаутувати / вирубити",
+  "steal": "красти", "erase": "стирати / зникати", "fade": "згасати", "lightning": "блискавка",
+  "disappear": "зникати", "strife": "конфлікт / розбрат"
+};
+
+
+
+// --- DOM Elements ---
+const sceneTextEl = document.getElementById('scene-text');
+const choicesContainerEl = document.getElementById('choices-container');
+const outcomeDisplayEl = document.getElementById('outcome-display');
+const voiceButton = document.getElementById('voice-button');
+const voiceStatusEl = document.getElementById('voice-status');
+const startChallengeBtn = document.getElementById('start-challenge-btn'); // Renamed
+const vocabListContainer = document.getElementById('vocab-list-container');
+
+// --- Game State ---
+let currentSceneId = 'start';
+let currentChoices = []; // Holds the {text, nextScene} objects for the current scene
+let isMemoryCheckPhase = false; // Is the player currently supposed to recall the English text?
+let isChoiceSpeakingPhase = false; // Is the player supposed to speak their choice?
+let originalEnglishTextForMemoryCheck = ""; // Stores formatted EN text for recall comparison/display
+let formattedUkrainianTextForMemoryCheck = "";// Stores formatted UA text to show during recall
+let memoryCheckPassed = false; // Did the player succeed in the last memory check?
+let ttsUnlocked = false; // Has the user interaction unlocked text-to-speech?
+let micPermissionGranted = null; // null: unknown, true: granted, false: denied
+let isListening = false; // Is the speech recognition actively listening?
+
+const MEMORY_SIMILARITY_THRESHOLD = 0.50; // Required similarity (0-1) for memory check
+
+// --- Text-to-Speech (TTS) Setup ---
+const synth = window.speechSynthesis;
+let currentUtterance = null;
+let selectedVoice = null; // Holds the chosen English voice object
+let voicesLoaded = false;
+
+if (synth && typeof synth.onvoiceschanged !== 'undefined') {
+    synth.onvoiceschanged = () => {
+        voicesLoaded = true;
+        console.log("[Init] System voices loaded/changed:", synth.getVoices().length);
+         // Re-select best voice if they change after initial load
+         if (ttsUnlocked) { // Only if game has started/audio enabled
+            selectedVoice = getBestVoice();
+            console.log("[TTS] Voices changed, re-selected voice:", selectedVoice ? selectedVoice.name : "default");
+         }
+    };
+}
+if (synth && synth.getVoices().length === 0) {
+    synth.getVoices(); // Try to preload
+}
+
+
+// --- Speech Recognition Setup ---
+const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let recognition = null; // Holds the SpeechRecognition instance
+
+
+// --- Helper Functions ---
+
+/** Removes HTML tags */
+function stripHtml(htmlString) {
+    if (!htmlString) return "";
+    const tmp = document.createElement("DIV");
+    tmp.innerHTML = htmlString;
+    return tmp.textContent || tmp.innerText || "";
+}
+
+/** Formats text: highlights vocab & location */
+function formatText(text) {
+    if (!text) return "";
+    let formattedText = String(text);
+    formattedText = formattedText.replace(/\[Location: (.*?)\]/g, '<span class="location-text">Location: $1</span>');
+    const sortedVocab = [...vocabulary].sort((a, b) => b.length - a.length);
+    sortedVocab.forEach(word => {
+        try {
+            const escapedWord = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            // Regex to match whole words, avoiding matches inside HTML tags or already highlighted spans
+            const regex = new RegExp(`(?<!<[^>]*?)(?<!<(?:span|div|p)\\s[^>]*>)(?<!<span class="[^"]*">)(\\b${escapedWord}\\b)(?![^<]*?>)(?![^<]*<\\/(?:span|div|p)>)`, 'gi');
+             formattedText = formattedText.replace(regex, (match) => {
+                 // Basic check to avoid re-wrapping common tags if regex fails
+                 if (match.toLowerCase().includes('<span class') || match.toLowerCase().includes('<div') ) return match;
+                 return `<span class="keyword-highlight">${match}</span>`;
+            });
+        } catch (e) { console.error(`[FormatText] Regex error for word "${word}":`, e); }
+    });
+    return formattedText;
+}
+
+/** Updates the vocabulary list based on current scene text */
+function updateVocabList(currentText) {
+    if (!vocabListContainer) return;
+    vocabListContainer.innerHTML = '';
+    const plainTextLower = currentText.toLowerCase();
+    const foundWords = new Set();
+
+    vocabulary.forEach(word => {
+        try {
+            const escapedWord = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            const regex = new RegExp(`\\b${escapedWord}\\b`, 'i');
+            if (regex.test(plainTextLower)) {
+                foundWords.add(word);
+            }
+        } catch (e) { console.error(`[VocabList] Regex error checking word "${word}":`, e); }
+    });
+
+    if (foundWords.size > 0) {
+        const ul = document.createElement('ul');
+        const sortedFoundWords = Array.from(foundWords).sort();
+        sortedFoundWords.forEach(enWord => {
+            const uaWord = vocabTranslations[enWord] || '[Translation N/A]';
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="ua-term">${uaWord}</span> - ${enWord}`;
+            ul.appendChild(li);
+        });
+        vocabListContainer.appendChild(ul);
+        // Visibility controlled by game state functions now
+    } else {
+        // Ensure it's hidden if no words found
+         vocabListContainer.classList.add('hidden');
+    }
+}
+
+/** Calculates Levenshtein distance */
+function levenshteinDistance(a = "", b = "") {
+    // (Implementation remains the same as original)
+      const strA = String(a).toLowerCase();
+      const strB = String(b).toLowerCase();
+      if (strA.length === 0) return strB.length;
+      if (strB.length === 0) return strA.length;
+      const matrix = Array(strB.length + 1).fill(null).map(() => Array(strA.length + 1).fill(null));
+      for (let i = 0; i <= strA.length; i++) matrix[0][i] = i;
+      for (let j = 0; j <= strB.length; j++) matrix[j][0] = j;
+      for (let j = 1; j <= strB.length; j++) {
+          for (let i = 1; i <= strA.length; i++) {
+              const cost = strA[i - 1] === strB[j - 1] ? 0 : 1;
+              matrix[j][i] = Math.min(
+                  matrix[j][i - 1] + 1,     // Deletion
+                  matrix[j - 1][i] + 1,     // Insertion
+                  matrix[j - 1][i - 1] + cost // Substitution
+              );
+          }
+      }
+      return matrix[strB.length][strA.length];
+}
+
+/** Calculates similarity score (0-1) */
+function calculateSimilarity(text1, text2) {
+    const distance = levenshteinDistance(text1, text2);
+    const len1 = String(text1).length;
+    const len2 = String(text2).length;
+    const maxLength = Math.max(len1, len2);
+    if (maxLength === 0) return 1;
+    const similarity = 1 - (distance / maxLength);
+    return Math.max(0, similarity);
+}
+
+/** Displays English text after memory check, highlighting matched words */
+function displayAndHighlightMemoryCheck(originalHTML, spokenTranscript) {
+     const plainOriginal = stripHtml(originalHTML).toLowerCase();
+     const originalWords = plainOriginal.split(/\s+/).filter(w => w.length > 0);
+     const spokenWords = spokenTranscript ? spokenTranscript.toLowerCase().split(/\s+/).filter(w => w.length > 0) : [];
+     const spokenWordSet = new Set(spokenWords);
+     let highlightedHTML = originalHTML; // Start with the formatted HTML
+     const matchedOriginalWords = new Set();
+
+     originalWords.forEach(word => {
+         const cleanWord = word.replace(/[.,!?;:]/g, '');
+         if (cleanWord && spokenWordSet.has(cleanWord)) {
+             matchedOriginalWords.add(cleanWord);
+         }
+     });
+      console.log("[Highlight] Matched words found:", Array.from(matchedOriginalWords));
+
+     // Apply memory-match class to matched words in the original *formatted* HTML
+     matchedOriginalWords.forEach(word => {
+         if (!word) return;
+         try {
+             const escapedWord = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+             // More specific regex to avoid matching inside tags or already wrapped spans
+             const regex = new RegExp(`(?<=>[^<]*)(\\b${escapedWord}\\b)(?=[^<]*<)|(?<!=["'\\/])(\\b${escapedWord}\\b)(?!["'\\/])`, 'gi');
+
+             highlightedHTML = highlightedHTML.replace(regex, (match, group1, group2) => {
+                 const actualMatch = group1 || group2; // Get the matched word
+                 // Check if the match is already inside a span (basic check)
+                 // This is tricky - aiming to not double-wrap
+                  const surroundingChars = highlightedHTML.substring(
+                      Math.max(0, highlightedHTML.indexOf(actualMatch) - 10),
+                      highlightedHTML.indexOf(actualMatch) + actualMatch.length + 10
+                 );
+                 if (surroundingChars.includes('<span class="memory-match">') || surroundingChars.includes('<span class="keyword-highlight">')) {
+                     return actualMatch; // Avoid re-wrapping if it looks like it's already wrapped
+                 }
+                 return `<span class="memory-match">${actualMatch}</span>`;
+             });
+         } catch (e) { console.error(`[Highlight] Regex error for word "${word}":`, e); }
+     });
+
+     sceneTextEl.innerHTML = highlightedHTML; // Display the result with highlights
+     sceneTextEl.classList.remove('memory-recall-active');
+}
+
+
+// --- UI Element State Management ---
+
+/** Updates voice button text and style based on game state */
+function updateVoiceButtonUI() {
+    if (!voiceButton) return;
+    voiceButton.classList.remove('listening', 'bg-accent', 'hover:bg-accent-dark', 'bg-info');
+
+    if (isListening) {
+        voiceButton.classList.add('listening', 'bg-info');
+        if (isMemoryCheckPhase) {
+            voiceButton.textContent = 'Listening for Recall... 👂';
+        } else if (isChoiceSpeakingPhase) {
+            voiceButton.textContent = 'Listening for Choice... 👂';
+        } else {
+             voiceButton.textContent = 'Listening... 👂'; // Generic fallback
+        }
+    } else {
+         // Default button state
+        voiceButton.classList.add('bg-accent', 'hover:bg-accent-dark');
+        if (isMemoryCheckPhase) {
+            voiceButton.textContent = 'Speak English Text 🎤';
+            voiceStatusEl.textContent = "Click button above to speak the English text you heard.";
+            voiceStatusEl.className = 'text-highlight';
+        } else if (isChoiceSpeakingPhase) {
+            voiceButton.textContent = 'Speak Choice 🎤';
+            voiceStatusEl.textContent = "Click button above to speak your choice.";
+             voiceStatusEl.className = 'text-info';
+        } else {
+             // Button shouldn't normally be active here unless end/error
+             voiceButton.textContent = 'Speak Action 🎤';
+        }
+    }
+
+    // Handle disabled states last
+     if (!SpeechRecognitionAPI) {
+        voiceButton.disabled = true;
+        voiceButton.textContent = 'Voice Not Supported';
+    } else if (micPermissionGranted === false) {
+        voiceButton.disabled = true;
+        voiceButton.textContent = 'Mic Disabled';
+    } else {
+         // Enable button if mic is ok AND it's relevant phase, disable otherwise
+         voiceButton.disabled = !(isMemoryCheckPhase || isChoiceSpeakingPhase);
+    }
+}
+
+/** Hides or shows the choices container */
+ function setChoicesVisibility(visible) {
+     if (visible) {
+         choicesContainerEl.classList.remove('hidden');
+         // Note: Buttons themselves remain non-interactive per CSS/JS logic change
+     } else {
+         choicesContainerEl.classList.add('hidden');
+     }
+ }
+
+/** Hides or shows the vocabulary list */
+function setVocabListVisibility(visible) {
+     if (visible) {
+         vocabListContainer.classList.remove('hidden');
+     } else {
+         vocabListContainer.classList.add('hidden');
+     }
+}
+
+// --- Text-to-Speech (TTS) Functionality ---
+
+/** Finds the best available English voice */
+function getBestVoice() {
+    const voices = synth.getVoices();
+    // Prefer enhanced/premium, then specific known good ones, then any US/GB, then any English
+    return voices.find(v => v.lang.startsWith('en') && (v.name.toLowerCase().includes('enhanced') || v.name.toLowerCase().includes('premium'))) ||
+           voices.find(v => v.lang.startsWith('en') && (v.name.toLowerCase().includes('daniel') || v.name.toLowerCase().includes('samantha'))) ||
+           voices.find(v => v.lang.toLowerCase() === 'en-gb') ||
+           voices.find(v => v.lang.toLowerCase() === 'en-us') ||
+           voices.find(v => v.lang.startsWith('en')) ||
+           null;
+}
+
+/** Speaks text using selected voice */
+function speakText(textToSpeak, lang = 'en-GB', onEndCallback = null) {
+    const availableVoices = synth.getVoices();
+    // console.log(`[TTS Debug] speakText called. Voices: ${availableVoices.length}. Loaded: ${voicesLoaded}. Unlocked: ${ttsUnlocked}`);
+
+    if (!synth || !ttsUnlocked || !textToSpeak) {
+        console.warn(`[TTS] Skipping speech (Synth: ${!!synth}, Unlocked: ${ttsUnlocked}, Text: ${!!textToSpeak})`);
+        if (onEndCallback) setTimeout(onEndCallback, 0); // Ensure callback runs even if skipped
+        return;
+    }
+
+    if (synth.speaking) {
+        console.log("[TTS] Cancelling previous utterance sequence.");
+        synth.cancel(); // Cancel any ongoing/queued speech first
+    }
+
+    const plainText = stripHtml(textToSpeak).trim();
+    if (!plainText) {
+        console.log("[TTS] No text to speak after trimming.");
+        if (onEndCallback) setTimeout(onEndCallback, 0); // Ensure callback runs even if empty
+        return;
+    }
+
+    // --- Sentence Splitting ---
+    // Match sequences ending in sentence punctuation (. ! ?) OR the final part of the string.
+    const sentences = plainText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
+    const validSentences = sentences.map(s => s.trim()).filter(s => s.length > 0);
+
+    if (validSentences.length === 0) {
+        console.log("[TTS] No valid sentences found after splitting.");
+        if (onEndCallback) setTimeout(onEndCallback, 0);
+        return;
+    }
+    // console.log(`[TTS] Split into ${validSentences.length} sentences.`);
+
+    let callbackCalled = false; // Flag to prevent multiple calls to onEndCallback
+    let fallbackTimer = null;   // Handle for the safety timeout
+
+    // --- Completion Handler ---
+    // Central function to handle cleanup and calling the final callback
+    const handleCompletion = (error = null) => {
+        if (callbackCalled) return; // Already handled
+        callbackCalled = true;
+        clearTimeout(fallbackTimer); // Clear timer
+        sceneTextEl.classList.remove('speaking'); // UI cleanup
+
+        if (error) {
+            console.error('[TTS] Utterance error during sequence:', error);
+            // Cancel any further utterances that might be queued
+            synth.cancel();
+        } else {
+            // console.log('[TTS] Sentence sequence successfully finished.');
+        }
+
+        // Call the original callback provided to speakText
+        if (onEndCallback) {
+            try {
+                onEndCallback();
+            } catch (e) {
+                console.error("[TTS] Error executing onEndCallback:", e);
+            }
+        }
+    };
+
+    // --- Create Utterances ---
+    const utterances = validSentences.map((sentence, index) => {
+        const utterance = new SpeechSynthesisUtterance(sentence);
+        utterance.lang = selectedVoice ? selectedVoice.lang : lang;
+        utterance.voice = selectedVoice;
+
+        // General error handler for any utterance in the sequence
+        utterance.onerror = (event) => {
+            handleCompletion(`Error on sentence ${index + 1}: ${event.error}`);
+        };
+
+        // The *last* utterance's onend triggers the final successful completion
+        if (index === validSentences.length - 1) {
+            utterance.onend = () => {
+                handleCompletion(); // Success path
+            };
+        } else {
+            // Optional: Log when intermediate sentences finish
+            utterance.onend = () => {
+                // console.log(`[TTS] Sentence ${index + 1} of ${validSentences.length} ended.`);
+            };
+        }
+
+        // The *first* utterance's onstart visually indicates speaking has begun
+        if (index === 0) {
+            utterance.onstart = () => {
+                // console.log('[TTS] Sentence sequence started.');
+                sceneTextEl.classList.add('speaking');
+            };
+        }
+
+        return utterance;
+    });
+
+    // --- Safety Timeout (for the whole sequence) ---
+    const totalChars = plainText.length;
+    // Estimate: time per char + overhead per sentence + buffer
+    const estimatedDurationMs = (totalChars / 12) * 1000 + (validSentences.length * 1200) + 6000; // Adjusted estimation
+    // Ensure a minimum reasonable time per sentence
+    const minDuration = Math.max(5000 * validSentences.length, 10000); // e.g. 5s/sentence, min 10s total
+    const maxDurationMs = Math.max(estimatedDurationMs, minDuration);
+    // console.log(`[TTS] Setting fallback timer for sequence: ${maxDurationMs}ms`);
+
+    fallbackTimer = setTimeout(() => {
+        if (!callbackCalled) {
+            console.warn(`[TTS] Fallback timer triggered for sequence after ${maxDurationMs}ms. Speech may be stuck. Forcing callback.`);
+            handleCompletion("Fallback Timeout"); // Call completion handler with error indication
+        }
+    }, maxDurationMs);
+    // --- End Safety Timeout ---
+
+    // --- Queue all utterances for speaking ---
+    // console.log(`[TTS] Queuing ${utterances.length} utterances.`);
+    try {
+         utterances.forEach(utt => synth.speak(utt));
+    } catch (e) {
+         console.error("[TTS] Error calling synth.speak() while queuing:", e);
+         // If speaking fails immediately, trigger completion
+         handleCompletion("Speak Error during queuing");
+    }
+}
+
+// --- Speech Recognition Functionality ---
+
+/** Initializes Speech Recognition */
+function initializeSpeechRecognition() {
+     if (!SpeechRecognitionAPI) {
+         console.warn('[SpeechRec] API not supported.');
+         updateVoiceButtonUI(); // Ensure button shows unsupported state
+         return;
+     }
+     if (recognition) {
+         console.log("[SpeechRec] Already initialized.");
+         return; // Avoid re-initializing
+     }
+
+    try {
+        recognition = new SpeechRecognitionAPI();
+        recognition.continuous = true; // Process single utterance
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+            isListening = true;
+            updateVoiceButtonUI();
+            console.log('[SpeechRec] Event: onstart');
+        };
+
+        recognition.onresult = (event) => {
+            console.log('[SpeechRec] Event: onresult');
+            let transcript = "";
+            if (event.results && event.results[0] && event.results[0][0]) {
+                transcript = event.results[0][0].transcript.trim();
+            } else {
+                 console.warn("[SpeechRec] onresult: Received empty/malformed results.");
+            }
+            console.log(`[SpeechRec] Recognized: "${transcript}"`);
+
+             // Stop listening once we have a result
+             if (recognition && isListening) {
+                 try { recognition.stop(); } catch(e) { console.warn("Error stopping recognition after result:", e); }
+             }
+
+            if (isMemoryCheckPhase) {
+                processMemoryCheckResult(transcript);
+            } else if (isChoiceSpeakingPhase) {
+                processChoiceSpeechResult(transcript);
+            } else {
+                 console.warn("[SpeechRec] Received result in unexpected phase.");
+            }
+        };
+
+        recognition.onerror = (event) => {
+            console.error('[SpeechRec] Event: onerror - Error:', event.error, 'Message:', event.message);
+            let errorMessage = 'Speech recognition error';
+            switch (event.error) {
+                case 'no-speech': errorMessage = 'No speech detected.'; break;
+                case 'audio-capture': errorMessage = 'Mic error. Check connection/permissions.'; break;
+                case 'not-allowed': errorMessage = 'Mic access denied.'; micPermissionGranted = false; break; // Update state
+                case 'network': errorMessage = 'Network error.'; break;
+                case 'aborted': errorMessage = 'Speech input stopped.'; break; // Less alarming
+                 case 'service-not-allowed': errorMessage = 'Speech service denied.'; break;
+                default: errorMessage = `Error: ${event.error || 'Unknown'}`;
+            }
+            if (event.error !== 'aborted') { // Don't show status for manual aborts if possible
+                voiceStatusEl.textContent = `Error: ${errorMessage}`;
+                voiceStatusEl.className = 'text-danger';
+            }
+            // Let onend handle final UI state reset
+        };
+
+        recognition.onend = () => {
+            console.log('[SpeechRec] Event: onend');
+            isListening = false;
+            updateVoiceButtonUI(); // Reset button state after listening stops
+        };
+
+         console.log("[SpeechRec] Initialization complete.");
+
+    } catch (e) {
+        console.error("[SpeechRec] Error creating SpeechRecognition object:", e);
+        recognition = null; // Ensure it's null if creation failed
+        updateVoiceButtonUI(); // Update button to show error/unsupported
+    }
+}
+// --- End of Chunk 1 ---
+// --- Start of Chunk 2 ---
+// (Continuing script from Chunk 1)
+
+/** Processes speech result during memory check */
+function processMemoryCheckResult(transcript) {
+    console.log('[MemoryCheck] Processing transcript:', `"${transcript}"`);
+    const feedbackArea = document.getElementById('feedback-percentage-area'); // Get the new feedback element
+
+    // Clear any previous feedback first
+    if (feedbackArea) {
+        feedbackArea.textContent = '';
+        // Reset classes, removing color helpers like text-success or text-highlight
+        feedbackArea.className = 'text-center font-semibold mt-2 min-h-[1.2em]';
+    }
+
+    if (!originalEnglishTextForMemoryCheck) {
+        console.error("[MemoryCheck] ERROR: Original English text missing!");
+        voiceStatusEl.textContent = "Error: Cannot perform memory check."; // Use main status for errors
+        voiceStatusEl.className = 'text-danger';
+        if (feedbackArea) feedbackArea.textContent = 'Error checking recall.'; // Also show error in feedback
+        isMemoryCheckPhase = false;
+        memoryCheckPassed = false;
+        updateVoiceButtonUI();
+        return;
+    }
+
+    const plainOriginal = stripHtml(originalEnglishTextForMemoryCheck).toLowerCase();
+    const plainTranscript = transcript ? transcript.toLowerCase() : "";
+    const similarity = calculateSimilarity(plainOriginal, plainTranscript);
+    const similarityPercent = (similarity * 100).toFixed(0);
+    const feedbackDisplayDuration = 3000; // Keep feedback visible for 3 seconds
+
+    console.log(`[MemoryCheck] Similarity: ${similarity.toFixed(3)} (${similarityPercent}%)`);
+
+    if (similarity >= MEMORY_SIMILARITY_THRESHOLD) {
+        console.log("[MemoryCheck] PASSED.");
+
+        // --- Display percentage in the dedicated feedback area ---
+        if (feedbackArea) {
+            feedbackArea.textContent = `Recall Success: ${similarityPercent}%`;
+            feedbackArea.classList.add('text-success'); // Apply success color
+        }
+
+        // --- Set NEXT INSTRUCTION in the main voiceStatusEl ---
+        voiceStatusEl.textContent = `Choices below. Click button to speak choice.`;
+        voiceStatusEl.className = 'text-info'; // Use neutral color for instruction
+
+        // --- Perform immediate state updates and UI changes for pass ---
+        memoryCheckPassed = true;
+        isMemoryCheckPhase = false;
+        isChoiceSpeakingPhase = true;
+        displayAndHighlightMemoryCheck(originalEnglishTextForMemoryCheck, plainTranscript);
+        setVocabListVisibility(true);
+        setChoicesVisibility(true);
+        updateVoiceButtonUI(); // Update button for choice speaking phase
+
+        // --- Schedule clearing of the dedicated feedback area ---
+        if (feedbackArea) {
+            setTimeout(() => {
+                feedbackArea.textContent = ''; // Clear the text
+                feedbackArea.className = 'text-center font-semibold mt-2 min-h-[1.2em]'; // Reset class
+            }, feedbackDisplayDuration);
+        }
+
+    } else {
+        console.log("[MemoryCheck] FAILED.");
+
+        // --- Display percentage in the dedicated feedback area ---
+        if (feedbackArea) {
+            feedbackArea.textContent = `Recall Failed: ${similarityPercent}%`;
+            feedbackArea.classList.add('text-highlight'); // Apply retry/fail color
+        }
+
+        // --- Set NEXT INSTRUCTION in the main voiceStatusEl ---
+        voiceStatusEl.textContent = `Click button to try recall again.`;
+        voiceStatusEl.className = 'text-highlight'; // Match feedback color for retry instruction
+
+        // --- Perform immediate state updates and UI changes for fail ---
+        memoryCheckPassed = false;
+        isMemoryCheckPhase = true; // Stay in memory phase
+        isChoiceSpeakingPhase = false;
+        sceneTextEl.innerHTML = originalEnglishTextForMemoryCheck; // Show original text again
+        sceneTextEl.classList.remove('memory-recall-active');
+        setVocabListVisibility(true);
+        setChoicesVisibility(false); // Keep choices hidden
+        updateVoiceButtonUI(); // Keep button active for memory check retry
+
+        // --- Schedule clearing of the dedicated feedback area ---
+        if (feedbackArea) {
+            setTimeout(() => {
+                feedbackArea.textContent = ''; // Clear the text
+                feedbackArea.className = 'text-center font-semibold mt-2 min-h-[1.2em]'; // Reset class
+            }, feedbackDisplayDuration);
+        }
+    }
+}
+
+/** Processes speech result during choice selection phase */
+function processChoiceSpeechResult(transcript) {
+     console.log("[ChoiceSpeak] Processing transcript:", `"${transcript}"`);
+     if (!isChoiceSpeakingPhase) {
+         console.warn("[ChoiceSpeak] Received result outside of choice speaking phase. Ignoring.");
+         return;
+     }
+     if (!currentChoices || currentChoices.length === 0) {
+         console.warn("[ChoiceSpeak] No current choices available to match against.");
+         voiceStatusEl.textContent = "No choices available.";
+         voiceStatusEl.className = 'text-highlight';
+         return;
+     }
+
+    const bestMatch = findBestMatchChoice(transcript, currentChoices);
+
+    if (bestMatch) {
+        console.log(`[ChoiceSpeak] Best match found: "${stripHtml(bestMatch.choiceData.text)}"`);
+        voiceStatusEl.textContent = `Choosing: "${stripHtml(bestMatch.choiceData.text)}"...`;
+        voiceStatusEl.className = 'text-info';
+
+        // Transition out of choice speaking phase *before* handling choice
+        isChoiceSpeakingPhase = false;
+        updateVoiceButtonUI(); // Disable button during transition
+
+        setTimeout(() => {
+             console.log("[ChoiceSpeak] Executing handleChoice after delay.");
+            handleChoice(bestMatch.choiceData);
+        }, 800); // Short delay for user feedback
+
+    } else {
+        console.log("[ChoiceSpeak] No suitable choice match found.");
+        voiceStatusEl.textContent = `No clear match for "${transcript}". Click button to try speaking again.`;
+        voiceStatusEl.className = 'text-highlight';
+         // Remain in choice speaking phase for retry
+         isChoiceSpeakingPhase = true;
+         updateVoiceButtonUI(); // Keep button enabled for retry
+    }
+}
+
+/** Helper to find the best choice match for spoken text */
+function findBestMatchChoice(transcript, choices) {
+    if (!transcript || !choices || choices.length === 0) return null;
+    let bestMatch = null;
+    let highestSimilarity = -1;
+    const normalizedTranscript = transcript.toLowerCase().trim().replace(/[.,!?;:]/g, '');
+
+    choices.forEach((choice, index) => {
+        const plainChoiceText = stripHtml(choice.text).toLowerCase().trim().replace(/[.,!?;:]/g, '');
+        if (!plainChoiceText) return;
+
+         // Calculate similarity - potentially use a slightly lower threshold for choices
+         const similarity = calculateSimilarity(normalizedTranscript, plainChoiceText);
+         const similarityThreshold = 0.40; // May need adjustment
+
+        if (similarity >= similarityThreshold && similarity > highestSimilarity) {
+            highestSimilarity = similarity;
+            bestMatch = { choiceData: choice, index: index, similarity: similarity };
+        }
+         // --- Add Keyword Matching Boost ---
+         // Simple check if any important word from the choice is in the transcript
+         const choiceWords = plainChoiceText.split(/\s+/).filter(w => w.length > 3); // Ignore short words
+         const transcriptWords = new Set(normalizedTranscript.split(/\s+/));
+         let keywordMatch = false;
+         for (const cw of choiceWords) {
+             if (transcriptWords.has(cw)) {
+                 keywordMatch = true;
+                 break;
+             }
+         }
+         // If keywords match and similarity is decent (but maybe not highest), consider it a good candidate
+         if (keywordMatch && similarity > 0.30 && similarity > highestSimilarity * 0.8) { // Adjust boost logic as needed
+             // console.log(`[ChoiceSpeak] Keyword boost for: "${plainChoiceText}" (Sim: ${similarity.toFixed(2)})`);
+             highestSimilarity = similarity; // Update highest similarity if boosted
+             bestMatch = { choiceData: choice, index: index, similarity: similarity };
+         }
+         // --- End Keyword Matching Boost ---
+
+
+    });
+
+    if (bestMatch) {
+        console.log(`[ChoiceSpeak DEBUG] Best match: "${stripHtml(bestMatch.choiceData.text)}" (Index: ${bestMatch.index}, Sim: ${bestMatch.similarity.toFixed(2)})`);
+    } else {
+        console.log("[ChoiceSpeak DEBUG] No suitable choice match found.");
+    }
+    return bestMatch;
+}
+
+
+// --- Main Game Flow Functions ---
+
+/** Displays the specified scene and prepares interactions */
+function displayScene(sceneId) {
+    console.log(`[Game Flow] Displaying scene: ${sceneId}`);
+    const sceneData = gameData[sceneId];
+
+    // Reset state variables for the new scene
+    currentChoices = [];
+    isMemoryCheckPhase = false;
+    isChoiceSpeakingPhase = false;
+    memoryCheckPassed = false;
+    originalEnglishTextForMemoryCheck = "";
+    formattedUkrainianTextForMemoryCheck = "";
+
+    // Stop any ongoing interactions
+    if (synth?.speaking) synth.cancel();
+    if (recognition && isListening) {
+        try { recognition.abort(); } catch (e) {}
+        isListening = false;
+    }
+    sceneTextEl.classList.remove('speaking', 'memory-recall-active');
+
+    if (!sceneData) {
+        console.error(`[Game Flow] Invalid sceneId: ${sceneId}.`);
+        sceneTextEl.innerHTML = formatText("Error: Scene data not found. Please restart.");
+        choicesContainerEl.innerHTML = '';
+        setChoicesVisibility(false);
+        setVocabListVisibility(false);
+        outcomeDisplayEl.innerHTML = '<div class="game-over">ERROR</div>';
+        addRestartButton();
+        updateVoiceButtonUI();
+        return;
+    }
+
+    // Process Scene Text (EN and UA)
+    const englishText = (typeof sceneData.text === 'object' && sceneData.text.en) ? sceneData.text.en : sceneData.text;
+    const ukrainianText = (typeof sceneData.text === 'object' && sceneData.text.ua) ? sceneData.text.ua : null;
+    let sceneDisplayText = englishText || `Scene "${sceneId}" has no English text.`;
+    let outcomeMessage = '';
+    const gameOverMatch = sceneDisplayText.match(/<span class='game-over'>(.*?)<\/span>/i);
+    const gameSuccessMatch = sceneDisplayText.match(/<span class='game-success'>(.*?)<\/span>/i);
+    const isEndScene = !!(gameOverMatch || gameSuccessMatch);
+
+    if (gameOverMatch) {
+        outcomeMessage = `<div class="game-over">${gameOverMatch[1]}</div>`;
+        sceneDisplayText = sceneDisplayText.replace(gameOverMatch[0], '').trim();
+    } else if (gameSuccessMatch) {
+        outcomeMessage = `<div class="game-success">${gameSuccessMatch[1]}</div>`;
+        sceneDisplayText = sceneDisplayText.replace(gameSuccessMatch[0], '').trim();
+    }
+
+    originalEnglishTextForMemoryCheck = formatText(sceneDisplayText);
+    if (ukrainianText) {
+        formattedUkrainianTextForMemoryCheck = formatText(ukrainianText);
+    }
+    const plainEnglishText = stripHtml(originalEnglishTextForMemoryCheck);
+
+    // Initial UI Update
+    sceneTextEl.innerHTML = originalEnglishTextForMemoryCheck;
+    outcomeDisplayEl.innerHTML = outcomeMessage;
+    voiceStatusEl.textContent = '';
+    voiceStatusEl.className = 'text-info';
+    choicesContainerEl.innerHTML = ''; // Clear before preparing
+
+    updateVocabList(plainEnglishText);
+    setVocabListVisibility(true);
+
+    // *** Prepare choice elements (container starts hidden) ***
+    // Use prepareAndDisplayChoices which now creates the elements
+    if (sceneData.choices?.length > 0) {
+        prepareAndDisplayChoices(sceneData);
+    } else if (isEndScene) {
+        addRestartButton(); // Ensures restart button is added if no choices defined
+    }
+    // Ensure choices container starts hidden for the new scene
+    setChoicesVisibility(false);
+
+    updateVoiceButtonUI(); // Set initial button state
+
+    // --- Speak English Text & Setup Next Interaction Phase ---
+    console.log("[Game Flow] Calling speakText for the scene.");
+    speakText(plainEnglishText, 'en-GB', () => {
+        console.log("[Game Flow] speakText callback executed.");
+        const needsMemoryCheck = !!formattedUkrainianTextForMemoryCheck && !isEndScene;
+        console.log(`[Game Flow] speakText callback: needsMemoryCheck = ${needsMemoryCheck}, isEndScene = ${isEndScene}`);
+
+        if (needsMemoryCheck) {
+            console.log("[Game Flow] Setting up Memory Check phase.");
+            isMemoryCheckPhase = true;
+            isChoiceSpeakingPhase = false;
+            memoryCheckPassed = false;
+            voiceStatusEl.textContent = "Listen carefully to the text above.";
+        } else {
+            console.log("[Game Flow] Skipping Memory Check or is End Scene.");
+            isMemoryCheckPhase = false;
+            isChoiceSpeakingPhase = !isEndScene;
+            memoryCheckPassed = true;
+
+            if (!isEndScene) {
+                console.log("[Game Flow] Setting up Choice Speaking phase (no memory check).");
+                voiceStatusEl.textContent = "Speak your desired choice.";
+                setChoicesVisibility(false); // Keep choices hidden if skipping memory check too
+            } else {
+                console.log("[Game Flow] End scene reached. No further voice action.");
+                voiceStatusEl.textContent = "Game finished.";
+                // Make sure restart button is visible if added
+                 if (document.getElementById('restart-button') || document.getElementById('dynamic-restart-button')) {
+                     setChoicesVisibility(true);
+                 }
+            }
+        }
+        updateVoiceButtonUI(); // Update button state AFTER determining phase
+    });
+}
+
+/** Populates currentChoices array but doesn't create buttons */
+function prepareAndDisplayChoices(sceneData) {
+    choicesContainerEl.innerHTML = ''; // Clear previous
+    currentChoices = []; // Reset choices array
+
+    if (sceneData.choices?.length > 0) {
+        currentChoices = sceneData.choices.map(choice => ({
+            text: choice.text,
+            nextScene: choice.nextScene
+        }));
+        console.log(`[Game Flow] Prepared ${currentChoices.length} choices for matching.`);
+
+        // Create visual elements (these will be in the container, initially hidden)
+        currentChoices.forEach(choice => {
+            const element = document.createElement('div'); // Use div instead of button for non-clickable choices
+            // Style like a button, but use 'default' cursor and maybe slightly faded
+            element.className = `block w-full p-3 mb-3 border-none bg-accent text-white text-left rounded text-base transition-colors duration-200 ease-in-out focus:outline-none opacity-90 cursor-default`; // Adjusted style
+            element.innerHTML = formatText(choice.text); // Display formatted text
+
+            // Special handling ONLY if a choice IS "Restart Game"
+            if (choice.text === "Restart Game") {
+                 element.remove(); // Remove the div we just made for restart
+                 const restartButton = document.createElement('button'); // Create a real button for restart
+                restartButton.id = "restart-button"; // Use specific ID if needed
+                restartButton.className = `block w-fit mx-auto p-3 mt-4 border-none bg-danger text-white cursor-pointer rounded text-base transition-colors duration-200 ease-in-out hover:bg-danger-dark focus:outline-none focus:ring-2 focus:ring-danger-dark focus:ring-opacity-50`; // Restart button styles
+                restartButton.textContent = choice.text;
+                restartButton.disabled = false; // Ensure restart is clickable
+                restartButton.onclick = () => handleChoice(choice); // Add click handler ONLY for restart
+                 choicesContainerEl.appendChild(restartButton); // Add the button
+            } else {
+                 choicesContainerEl.appendChild(element); // Add the non-clickable div
+            }
+        });
+
+    } else {
+        console.warn("[Game Flow] prepareAndDisplayChoices called, but sceneData has no choices.");
+    }
+     // Ensure container itself starts hidden (visibility controlled elsewhere)
+     setChoicesVisibility(false);
+}
+
+
+/** Adds a visible Restart Game button */
+function addRestartButton() {
+     // Check if a restart button from gameData choices already exists
+     let existingRestartButton = null;
+     choicesContainerEl.querySelectorAll('button').forEach(btn => {
+         if (btn.id === 'restart-button') {
+             existingRestartButton = btn;
+         }
+     });
+
+     if (existingRestartButton) {
+         console.log("[Game Flow] Restart button already exists from choices.");
+         setChoicesVisibility(true); // Make sure container is visible if restart is the choice
+         existingRestartButton.disabled = false; // Ensure it's clickable
+         return;
+     }
+
+     // If no restart button from choices, create one dynamically
+    if (document.getElementById('dynamic-restart-button')) return; // Avoid adding duplicates
+    if (synth?.speaking) synth.cancel();
+
+    const restartChoice = { text: "Restart Game", nextScene: 'start' };
+    const button = document.createElement('button');
+    // Use specific ID for dynamically added button
+    button.id = "dynamic-restart-button";
+    // Apply restart button styling
+    button.className = `block w-fit mx-auto p-3 mt-4 border-none bg-danger text-white cursor-pointer rounded text-base transition-colors duration-200 ease-in-out hover:bg-danger-dark focus:outline-none focus:ring-2 focus:ring-danger-dark focus:ring-opacity-50`;
+    button.textContent = restartChoice.text;
+    button.onclick = () => handleChoice(restartChoice);
+    button.disabled = false; // Make clickable immediately
+
+    // Append to outcome display or choices container? Let's use choices for consistency
+    choicesContainerEl.appendChild(button);
+    setChoicesVisibility(true); // Make container visible for the restart button
+    console.log("[Game Flow] Added dynamic restart button.");
+}
+
+
+/** Handles moving to the next scene */
+function handleChoice(choiceData) {
+     console.log(`[Game Flow] Handling choice: "${choiceData.text}" -> ${choiceData.nextScene}`);
+
+     // Stop interactions
+     if (synth?.speaking) synth.cancel();
+     if (recognition && isListening) {
+         try { recognition.abort(); } catch(e) {}
+         isListening = false;
+     }
+     sceneTextEl.classList.remove('speaking', 'memory-recall-active');
+
+     if (!choiceData?.nextScene) {
+         console.error("[Game Flow] Invalid choice data (missing nextScene):", choiceData);
+         sceneTextEl.innerHTML = formatText("Error: Invalid choice selected. Please restart.");
+         choicesContainerEl.innerHTML = '';
+         setChoicesVisibility(false);
+         setVocabListVisibility(false);
+         outcomeDisplayEl.innerHTML = '<div class="game-over">ERROR</div>';
+         addRestartButton();
+         updateVoiceButtonUI(); // Disable voice button
+         return;
+     }
+
+     // Proceed to the next scene
+     console.log(`[Game Flow] Moving to scene: ${choiceData.nextScene}`);
+     currentSceneId = choiceData.nextScene;
+     // Reset phases before displaying next scene
+     isMemoryCheckPhase = false;
+     isChoiceSpeakingPhase = false;
+     displayScene(currentSceneId);
+}
+// --- End of Chunk 2 ---
+// --- Start of Chunk 3 ---
+// (Continuing script from Chunk 2)
+
+// --- Event Listener Setup ---
+
+/** Handles clicks on the main voice action button */
+function handleVoiceButtonClick() {
+    console.log(`[Voice Button] Clicked. MemoryPhase: ${isMemoryCheckPhase}, ChoicePhase: ${isChoiceSpeakingPhase}, Listening: ${isListening}`);
+
+    if (!recognition) {
+        console.error("[Voice Button] Recognition not initialized.");
+        voiceStatusEl.textContent = "Voice input system error.";
+        voiceStatusEl.className = 'text-danger';
+        return;
+    }
+    if (!micPermissionGranted) {
+        console.warn("[Voice Button] Mic permission not granted.");
+        voiceStatusEl.textContent = "Microphone access needed.";
+        voiceStatusEl.className = 'text-danger';
+        // requestMicPermission(); // Optionally re-request?
+        return;
+    }
+
+    if (isListening) {
+        console.log("[Voice Button] Currently listening, stopping recognition.");
+        try {
+            recognition.stop();
+        } catch (e) {
+            console.warn("[Voice Button] Error stopping recognition:", e);
+        }
+        // onend will handle UI update
+    } else {
+        // If not listening, start based on phase
+        if (isMemoryCheckPhase) {
+            console.log("[Voice Button] Starting memory recall recognition.");
+            // Hide English text, show Ukrainian/Placeholder
+            if (formattedUkrainianTextForMemoryCheck) {
+                sceneTextEl.innerHTML = formattedUkrainianTextForMemoryCheck;
+            } else {
+                sceneTextEl.innerHTML = "<p class='text-highlight p-2 text-center'>Translation not available.<br/>Recall the English text.</p>";
+            }
+            sceneTextEl.classList.add('memory-recall-active');
+            setVocabListVisibility(false); // Hide vocab during recall attempt
+            setChoicesVisibility(false); // Ensure choices definitely hidden
+
+            try {
+                recognition.lang = 'en-US'; // Ensure English for recall
+                recognition.start();
+            } catch (e) {
+                console.error("[Voice Button] Error starting memory recognition:", e);
+                // Restore UI if start fails
+                sceneTextEl.innerHTML = originalEnglishTextForMemoryCheck;
+                sceneTextEl.classList.remove('memory-recall-active');
+                setVocabListVisibility(true);
+                voiceStatusEl.textContent = "Error starting voice input.";
+                voiceStatusEl.className = 'text-danger';
+                isListening = false;
+                updateVoiceButtonUI();
+            }
+        } else if (isChoiceSpeakingPhase) {
+            console.log("[Voice Button] Starting choice speaking recognition.");
+
+            // *** HIDE CHOICES BEFORE LISTENING FOR CHOICE ***
+            setChoicesVisibility(false);
+            voiceStatusEl.textContent = "Listening for your choice..."; // Update status prompt
+
+            try {
+                recognition.lang = 'en-US'; // Ensure English for choice
+                recognition.start();
+            } catch (e) {
+                console.error("[Voice Button] Error starting choice recognition:", e);
+                voiceStatusEl.textContent = "Error starting voice input.";
+                voiceStatusEl.className = 'text-danger';
+                // Show choices again if listening fails? Or keep hidden? Let's keep hidden.
+                // setChoicesVisibility(true);
+                isListening = false;
+                updateVoiceButtonUI();
+            }
+        } else {
+            console.warn("[Voice Button] Clicked in unexpected state (not memory or choice phase).");
+            // Maybe it's an end scene? Button should be disabled.
+        }
+    }
+}
+
+// --- Replace existing addRestartButton function ---
+function addRestartButton() {
+    // Check if a restart button (dynamic or from choices) already exists
+    if (document.getElementById('restart-button') || document.getElementById('dynamic-restart-button')) {
+         console.log("[Game Flow] Restart button already exists.");
+         // Ensure container is visible if restart button is present
+         setChoicesVisibility(true);
+         // Ensure the button itself is enabled (might have been disabled)
+         const btn = document.getElementById('restart-button') || document.getElementById('dynamic-restart-button');
+         if(btn) btn.disabled = false;
+         return;
+    }
+
+    // If no restart button exists, create one dynamically
+    if (synth?.speaking) synth.cancel();
+
+    const restartChoice = { text: "Restart Game", nextScene: 'start' };
+    const button = document.createElement('button');
+    button.id = "dynamic-restart-button"; // Use specific ID
+    button.className = `block w-fit mx-auto p-3 mt-4 border-none bg-danger text-white cursor-pointer rounded text-base transition-colors duration-200 ease-in-out hover:bg-danger-dark focus:outline-none focus:ring-2 focus:ring-danger-dark focus:ring-opacity-50`;
+    button.textContent = restartChoice.text;
+    button.onclick = () => handleChoice(restartChoice);
+    button.disabled = false; // Make clickable immediately
+
+    choicesContainerEl.appendChild(button);
+    // *** MAKE SURE CONTAINER IS VISIBLE FOR RESTART ***
+    setChoicesVisibility(true);
+    console.log("[Game Flow] Added dynamic restart button.");
+}
+
+
+
+/** Listener for the Start Challenge / Enable Audio button */
+startChallengeBtn.addEventListener('click', () => {
+    console.log("[DEBUG] Start Challenge button clicked.");
+
+    // *** Disable button immediately to prevent rapid clicks / re-entry ***
+    startChallengeBtn.disabled = true;
+    console.log("[DEBUG] Start Challenge Button DISABLED.");
+
+    // Check ttsUnlocked status AFTER disabling
+    console.log(`[DEBUG] Checking ttsUnlocked status: ${ttsUnlocked}`);
+    if (ttsUnlocked) {
+        console.log("[DEBUG] ttsUnlocked is TRUE. Audio already enabled. Ensuring correct final state.");
+        // Keep button disabled as audio is already enabled
+        startChallengeBtn.textContent = 'Listen carefully ✅'; // Ensure text is correct
+        startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark', 'bg-danger'); // Clean up styles
+        startChallengeBtn.classList.add('audio-enabled');
+        return; // Exit, already handled
+    }
+
+    console.log("[DEBUG] ttsUnlocked is FALSE. Proceeding...");
+
+    console.log("[DEBUG] Checking synth support...");
+    if (!synth) {
+        console.error("[DEBUG] Speech synthesis NOT SUPPORTED.");
+        alert("Speech synthesis not supported by this browser.");
+        startChallengeBtn.textContent = 'Audio Not Supported';
+        // Button remains disabled
+        return;
+    }
+
+    console.log("[DEBUG] Synth support confirmed. Attempting to unlock TTS...");
+    startChallengeBtn.textContent = 'Enabling Audio...'; // Provide feedback
+
+    const utterance = new SpeechSynthesisUtterance("Listen carefully.");
+    utterance.volume = 0.01; // Keep it quiet/fast
+    utterance.rate = 1.0;
+
+    let eventFired = false; // Flag to track if onend/onerror occurs
+    let fallbackTimer = null; // Timer handle
+
+    utterance.onstart = () => {
+        console.log("[DEBUG] TTS utterance started successfully.");
+        // Optional: Clear the fallback timer if onstart fires,
+        // as it means the synth engine is responding.
+        // if (fallbackTimer) clearTimeout(fallbackTimer);
+    };
+
+    utterance.onend = () => {
+        console.log("[DEBUG] TTS utterance finished (onend). Setting ttsUnlocked=true.");
+        if (fallbackTimer) clearTimeout(fallbackTimer); // Clear timeout if event fires
+        eventFired = true;
+        if (!ttsUnlocked) { // Avoid running startGame twice if timeout also fired
+            ttsUnlocked = true;
+            startChallengeBtn.textContent = 'Listen carefully ✅';
+            startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark', 'bg-danger');
+            startChallengeBtn.classList.add('audio-enabled');
+            // Button remains disabled (as intended after success)
+
+            console.log("[DEBUG] TTS unlocked via onend. Calling startGame()...");
+            setTimeout(startGame, 50); // Short delay after state change
+        }
+    };
+
+    utterance.onerror = (e) => {
+        console.error("[DEBUG] TTS utterance ONSYNTH ERROR:", e.error, e);
+         if (fallbackTimer) clearTimeout(fallbackTimer); // Clear timeout if event fires
+        eventFired = true;
+        if (!ttsUnlocked) { // Avoid running startGame twice
+            alert(`Failed to enable audio: ${e.error}. Sound may not work. Trying to continue anyway...`);
+            ttsUnlocked = true; // Attempt to proceed despite error
+            startChallengeBtn.textContent = 'Audio Failed - Continuing';
+            startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark');
+            startChallengeBtn.classList.add('audio-enabled', 'bg-danger');
+            // Button remains disabled
+
+            console.log("[DEBUG] TTS unlock failed via onerror. Attempting to call startGame() anyway...");
+            setTimeout(startGame, 50);
+        }
+    };
+
+    // --- Fallback Timer ---
+    // If neither onend nor onerror has fired after a reasonable time,
+    // assume the TTS unlock is stuck or failed silently. Force proceed.
+    fallbackTimer = setTimeout(() => {
+        console.log("[DEBUG] Fallback timer executing check...");
+        if (!eventFired && !ttsUnlocked) { // Check if events fired or state changed
+            console.warn("[DEBUG] TTS unlock fallback: Neither onend nor onerror fired after 2 seconds. Assuming failure but proceeding.");
+            alert("Audio enablement timed out. Sound may not work. Trying to continue anyway...");
+            ttsUnlocked = true; // Force unlock state
+            startChallengeBtn.textContent = 'Audio Timeout - Continuing';
+            startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark');
+            startChallengeBtn.classList.add('audio-enabled', 'bg-danger');
+             // Button remains disabled
+
+            console.log("[DEBUG] TTS unlock timed out. Attempting to call startGame()...");
+            // No need for another setTimeout here, as we are already in one
+            startGame();
+        } else {
+             console.log("[DEBUG] Fallback timer: Event already fired or TTS unlocked. No action needed.");
+        }
+    }, 2000); // 2 second timeout
+
+    // --- Attempt to Speak ---
+    try {
+        console.log("[DEBUG] Calling synth.speak(utterance)...");
+        // Clear any previous synth queue just in case
+        if (synth.speaking || synth.pending) {
+            console.warn("[DEBUG] Cancelling existing speech before new unlock attempt.");
+            synth.cancel();
+        }
+        synth.speak(utterance);
+        console.log("[DEBUG] synth.speak() called without immediate error.");
+
+    } catch (e) {
+        console.error("[DEBUG] Error thrown immediately by synth.speak():", e);
+        if (fallbackTimer) clearTimeout(fallbackTimer); // Clear timeout on immediate error
+        eventFired = true; // Error is an event
+        if (!ttsUnlocked) { // Avoid running startGame twice
+            alert("Could not initiate audio enablement due to an immediate error. Trying to continue anyway...");
+            ttsUnlocked = true; // Attempt to proceed
+            startChallengeBtn.textContent = 'Audio Error - Continuing';
+            startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark');
+            startChallengeBtn.classList.add('audio-enabled', 'bg-danger');
+            // Button remains disabled
+
+            console.log("[DEBUG] synth.speak() threw error. Attempting to call startGame() anyway...");
+            setTimeout(startGame, 50);
+        }
+    }
+});
+
+
+// --- Game Initialization ---
+
+/** Requests microphone permission */
+async function requestMicPermission() {
+     if (!SpeechRecognitionAPI) {
+         console.log("[Init] Speech Rec not supported, skipping mic request.");
+          micPermissionGranted = false;
+         return false;
+     }
+     if (micPermissionGranted === true) {
+         console.log("[Init] Mic permission already granted.");
+         return true;
+     }
+     if (micPermissionGranted === false) {
+         console.log("[Init] Mic permission previously denied.");
+         // Don't re-prompt if explicitly denied previously, user must change in settings
+         return false;
+     }
+
+     // If status is null (unknown)
+     try {
+         console.log("[Init] Requesting microphone permission...");
+         voiceStatusEl.textContent = "Requesting microphone access...";
+         voiceStatusEl.className = 'text-info';
+         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+         console.log("[Init] Microphone permission GRANTED.");
+         micPermissionGranted = true;
+         stream.getTracks().forEach(track => track.stop()); // Release mic indicator
+         voiceStatusEl.textContent = ""; // Clear prompt
+         return true;
+     } catch (err) {
+         console.error("[Init] Microphone permission DENIED or error:", err.name, err.message);
+         micPermissionGranted = false;
+         voiceStatusEl.textContent = "Microphone access denied. Voice input disabled.";
+         voiceStatusEl.className = 'text-danger';
+         return false;
+     }
+}
+
+/** Initializes the game state and starts the first scene */
+async function startGame() {
+     console.log("[Init] startGame() called. TTS Unlocked:", ttsUnlocked);
+
+     // --- Wait for TTS Unlock ---
+     if (!ttsUnlocked) {
+         console.log("[Init] TTS not unlocked. Displaying 'Start Challenge' prompt.");
+         sceneTextEl.innerHTML = `<div class='p-4 text-center text-lg text-highlight'>Click the 'Start the challenge' button above to begin.</div>`;
+         choicesContainerEl.innerHTML = '';
+         setChoicesVisibility(false);
+         setVocabListVisibility(false);
+         outcomeDisplayEl.innerHTML = '';
+         voiceButton.disabled = true; // Voice button disabled initially
+         updateVoiceButtonUI();
+         startChallengeBtn.disabled = false; // Ensure start button is clickable
+         startChallengeBtn.textContent = 'Start the challenge 🚀';
+         startChallengeBtn.classList.remove('audio-enabled');
+         startChallengeBtn.classList.add('bg-accent', 'hover:bg-accent-dark');
+         return; // Wait for button click
+     }
+
+    // --- TTS Unlocked - Proceed ---
+    console.log("[Init] TTS unlocked. Initializing game elements.");
+    currentSceneId = 'start';
+    isMemoryCheckPhase = false;
+    isChoiceSpeakingPhase = false;
+    memoryCheckPassed = false;
+
+     // Ensure voices are loaded before selecting
+     if (synth.getVoices().length === 0 && voicesLoaded === false) {
+         console.log("[Init] Waiting for voices to load...");
+         await new Promise(resolve => {
+             if (voicesLoaded) resolve(); // Already loaded by the time we check
+             else synth.addEventListener('voiceschanged', resolve, { once: true });
+         });
+         console.log("[Init] Voices loaded.");
+     }
+     selectedVoice = getBestVoice();
+     console.log("[Init] Selected TTS voice:", selectedVoice ? selectedVoice.name : "default");
+     
+     // Initialize Speech Recognition (checks support internally)
+     initializeSpeechRecognition();
+
+     // Request Microphone Permission (only if needed and possible)
+     await requestMicPermission();
+
+     // Attach the single click listener to the voice button
+     voiceButton.removeEventListener('click', handleVoiceButtonClick); // Remove old first
+     voiceButton.addEventListener('click', handleVoiceButtonClick);
+     console.log("[Init] Voice button click listener attached.");
+
+
+     // Final update to button UI after permissions etc.
+     updateVoiceButtonUI();
+
+     // Display the First Scene
+     console.log(`[Init] Initialization complete. Displaying first scene: '${currentSceneId}'.`);
+     displayScene(currentSceneId);
+}
+
+// --- Initial Page Load ---
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("[Init] DOMContentLoaded. Calling startGame() for initial setup.");
+    startGame(); // Shows prompt or starts game if audio already enabled (e.g., refresh)
+});
+
+// --- End of Chunk 3 ---
+</script>
+</body>
+</html>

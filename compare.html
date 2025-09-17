@@ -1,0 +1,64 @@
+from telegram import Update
+from telegram.ext import Application, MessageHandler, filters, ContextTypes
+import os
+import whisper
+import torch 
+
+# Define a function to handle incoming audio messages or files
+async def audio_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Check if the message is a voice message
+    if update.message.voice:
+        voice_file = await context.bot.get_file(update.message.voice.file_id)
+        file_path = os.path.join(os.path.dirname(__file__), f"{voice_file.file_unique_id}.ogg")
+        await voice_file.download_to_drive(file_path)
+
+    # Check if the message is an audio file
+    elif update.message.audio:
+        audio_file = await context.bot.get_file(update.message.audio.file_id)
+        file_path = os.path.join(os.path.dirname(__file__), f"{audio_file.file_unique_id}.ogg")
+        await audio_file.download_to_drive(file_path)
+
+    else:
+        await update.message.reply_text("Please send an audio file or voice message.")
+        return
+
+    await process_audio(file_path, update, context)
+
+# Function to process the audio file using your processing script
+async def process_audio(file_path, update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # Load the Whisper model
+    model = whisper.load_model("small")
+
+    # Process the audio file
+    result = model.transcribe(file_path, language="en")
+
+    # Retrieve the transcribed text
+    transcribed_text = result["text"]
+    
+    # Split the text into chunks of 4096 characters for Telegram
+    max_length = 4096
+    text_chunks = [transcribed_text[i:i + max_length] for i in range(0, len(transcribed_text), max_length)]
+    
+    # Send each chunk as a separate message
+    for chunk in text_chunks:
+        await update.message.reply_text(chunk)
+    
+    # Optionally, delete the original audio file
+    os.remove(file_path)
+
+def main():
+    # Create the Application and pass in your bot's token
+    application = Application.builder().token("7134500757:AAFJejCP1W_kJQGuV4XhUaObbzvdegD2wjQ").build()
+
+    # Register a handler for audio messages or files
+    application.add_handler(MessageHandler(filters.AUDIO | filters.VOICE, audio_handler))
+
+    # Run the bot
+    application.run_polling()
+
+if __name__ == '__main__':
+    main()
+
+

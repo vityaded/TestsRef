@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flippable Question Cards - Shuffled!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles for the 3D flip effect and improved design */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .title-font {
+             font-family: 'Playfair Display', serif;
+        }
+
+        .scene {
+            perspective: 1000px;
+        }
+
+        .card {
+            transform-style: preserve-3d;
+            transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1);
+            cursor: pointer;
+        }
+
+        .card.is-flipped {
+            transform: rotateY(180deg);
+        }
+
+        .card-face {
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden; /* Safari */
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            text-align: center;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        .card-face-front {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .card-face-front:hover {
+            transform: scale(1.02);
+            transition: transform 0.3s ease;
+        }
+
+
+        .card-face-back {
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            color: #333;
+            transform: rotateY(180deg);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-10">
+            <h1 class="title-font text-4xl md:text-6xl font-bold text-gray-800 dark:text-white">Interview Questions</h1>
+            <p class="text-lg text-gray-600 dark:text-gray-400 mt-3">A shuffled deck of intriguing questions. Click any card to reveal.</p>
+        </header>
+
+        <!-- Grid for the cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8" id="card-grid">
+            <!-- Questions will be dynamically inserted here by JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        // Combined array of all questions
+        const questions = [
+            // Previous Questions
+            "What would you do if you were the one survivor in a plane crash? (Airbnb)",
+            "Who do you think would win in a fight between Spider-Man and Batman? (Stanford University)",
+            "What did you have for breakfast? (Banana Republic)",
+            "Describe the colour yellow to somebody who's blind. (Spirit Airlines)",
+            "How many people flew out of Chicago last year? (Redbox software)",
+            "What am I thinking right now? (TES Global)",
+            "Who is your hero, and why? (General Electrics)",
+            "Tell me something about your childhood. (Next)",
+            "What do you usually do after a bad day at work?",
+            "What's your biggest weakness?",
+            "How would your enemy describe you?",
+            "You have 50 red and 50 blue balls. How could you divide these between two containers to give the maximum probability of picking one of the colours?",
+            "What's the most selfish thing you've ever done?",
+            "Are you a nice person?",
+            "What on your CV is the closest thing to a lie?",
+            // New Questions
+            "Which one aspect of your personality would you change if you could, and why?",
+            "If you could have dinner with anyone from history, who would you choose?",
+            "If you were an animal, which animal would you be?",
+            "What kinds of things make you angry?",
+            "If you had to spend the rest of your life on a desert island (with plenty of food and water), what two things would you want to have with you?",
+            "Which TV or film character would you most like to be?",
+            "What's the best (or worst) decision you've ever made?",
+            "If I came to your house for dinner, what would you cook for me?",
+            "Which three adjectives describe you best?",
+            "If you were a car, what type of car would you be?",
+            "How do you normally treat animals?",
+            "Who do you admire most, and why?",
+            "If you could be a superhero, what would your superpowers be?",
+            "Tell me about something in your life that you're really proud of.",
+            "If Hollywood made a movie about your life, who would you like to see play the lead role as you?",
+            "If you could have six months with no obligations or financial limitations, what would you do with the time?"
+        ];
+
+        const cardGrid = document.getElementById('card-grid');
+
+        /**
+         * Shuffles an array in place using the Fisher-Yates algorithm.
+         * @param {Array} array The array to shuffle.
+         */
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]]; // ES6 destructuring swap
+            }
+        }
+
+
+        // Function to create and display all cards
+        function displayCards() {
+            // Clear the grid first
+            cardGrid.innerHTML = '';
+            
+            // Shuffle the questions array
+            shuffleArray(questions);
+
+            // Create a card for each question
+            questions.forEach(question => {
+                const scene = document.createElement('div');
+                scene.className = 'scene w-full h-72';
+
+                const card = document.createElement('div');
+                card.className = 'card relative w-full h-full';
+
+                // Card Front
+                const cardFront = document.createElement('div');
+                cardFront.className = 'card-face card-face-front';
+                cardFront.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-20 w-20 mb-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                    </svg>
+                    <h3 class="text-2xl font-bold">Question</h3>
+                    <p class="mt-2 font-light">Click to Reveal</p>
+                `;
+
+
+                // Card Back
+                const cardBack = document.createElement('div');
+                cardBack.className = 'card-face card-face-back';
+                cardBack.innerHTML = `<p class="text-xl font-medium">${question}</p>`;
+
+                card.appendChild(cardFront);
+                card.appendChild(cardBack);
+                scene.appendChild(card);
+
+                // Add click event listener to flip the card
+                card.addEventListener('click', () => {
+                    card.classList.toggle('is-flipped');
+                });
+
+                cardGrid.appendChild(scene);
+            });
+        }
+        
+        // Initial display of cards on page load
+        window.onload = displayCards;
+    </script>
+</body>
+</html>

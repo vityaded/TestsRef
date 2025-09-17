@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jeopardy One-Pager</title>
+
+  <style>
+    /* -------- Base layout -------- */
+    body {
+      margin: 20px;
+      font-family: Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    /* -------- Board table -------- */
+    table.board {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 2.5rem;
+      table-layout: fixed;          /* keeps columns equal width */
+    }
+    table.board caption {
+      caption-side: top;
+      font-weight: bold;
+      font-size: 1.2rem;
+      margin-bottom: 0.4rem;
+    }
+    table.board th,
+    table.board td {
+      border: 1px solid #333;
+      padding: 8px;
+      text-align: center;
+    }
+    table.board th {
+      background: #eee;
+    }
+
+    /* -------- Question lists -------- */
+    h2 {
+      margin-top: 2rem;
+      font-size: 1.15rem;
+    }
+    ul.qset {
+      list-style: none;
+      padding-left: 0;
+      margin: 0;
+    }
+    ul.qset li {
+      margin-bottom: 0.9rem;
+    }
+
+    /* -------- Inline helpers -------- */
+    .value   { font-weight: 700; }
+    .answer  { font-style: italic; }
+  </style>
+</head>
+<body>
+
+  <!-- Jeopardy Board -->
+  <table class="board">
+    <caption>Jeopardy Board</caption>
+    <thead>
+      <tr>
+        <th>Job Vocabulary</th>
+        <th>Future Tenses</th>
+        <th>Cause&nbsp;&amp;&nbsp;Effect</th>
+        <th>Work Life</th>
+        <th>Grammar Grab&nbsp;Bag</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="value">100</td><td class="value">100</td><td class="value">100</td><td class="value">100</td><td class="value">100</td></tr>
+      <tr><td class="value">200</td><td class="value">200</td><td class="value">200</td><td class="value">200</td><td class="value">200</td></tr>
+      <tr><td class="value">300</td><td class="value">300</td><td class="value">300</td><td class="value">300</td><td class="value">300</td></tr>
+      <tr><td class="value">400</td><td class="value">400</td><td class="value">400</td><td class="value">400</td><td class="value">400</td></tr>
+      <tr><td class="value">500</td><td class="value">500</td><td class="value">500</td><td class="value">500</td><td class="value">500</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Category 1 -->
+  <h2>Category 1: Job Vocabulary</h2>
+  <ul class="qset">
+    <li><span class="value">100:</span> This adjective describes a job that is difficult but in an interesting way.<br />
+        <span class="answer">Answer: What is challenging?</span></li>
+    <li><span class="value">200:</span> This term describes a job with a standard schedule, typically from Monday to Friday during the day.<br />
+        <span class="answer">Answer: What is nine-to-five?</span></li>
+    <li><span class="value">300:</span> This verb means to get money in exchange for work.<br />
+        <span class="answer">Answer: What is “to&nbsp;earn”?</span></li>
+    <li><span class="value">400:</span> This prefix is used to mean “wrongly” or “badly,” as in <em>to misunderstand</em> something.<br />
+        <span class="answer">Answer: What is “mis-”?</span></li>
+    <li><span class="value">500:</span> This is a general term for a person who creates things, such as buildings, software, or fashion.<br />
+        <span class="answer">Answer: What is a designer or architect (or similar creative roles)?</span></li>
+  </ul>
+
+  <!-- Category 2 -->
+  <h2>Category 2: Future Tenses</h2>
+  <ul class="qset">
+    <li><span class="value">100:</span> Which future form (“will” or “going&nbsp;to”) is typically used for spontaneous decisions made at the moment of speaking?<br />
+        <span class="answer">Answer: What is “will”?</span></li>
+    <li><span class="value">200:</span> If you see dark clouds in the sky, you would say, “It’s _______ rain.”<br />
+        <span class="answer">Answer: What is “going&nbsp;to”?</span></li>
+    <li><span class="value">300:</span> Complete the sentence for a plan you’ve already made: “I _______ visit my grandparents this weekend.”<br />
+        <span class="answer">Answer: What is “am going to”?</span></li>
+    <li><span class="value">400:</span> Which form is most common for making general predictions or promises about the future?<br />
+        <span class="answer">Answer: What is “will”?</span></li>
+    <li><span class="value">500:</span> Adding this adverb makes a future plan sound much more certain: “I will _______ apply for that job.”<br />
+        <span class="answer">Answer: What is “definitely”?</span></li>
+  </ul>
+
+  <!-- Category 3 -->
+  <h2>Category 3: Cause&nbsp;&amp;&nbsp;Effect</h2>
+  <ul class="qset">
+    <li><span class="value">100:</span> In the sentence, “If it rains, we will stay inside,” which part is the cause (or condition)?<br />
+        <span class="answer">Answer: What is “If it rains”?</span></li>
+    <li><span class="value">200:</span> This type of sentence structure, often using “if,” is used to talk about the future result of a possible action.<br />
+        <span class="answer">Answer: What is the first conditional?</span></li>
+    <li><span class="value">300:</span> Combine these ideas into one sentence: 1. You don’t hurry. 2. You will be late.<br />
+        <span class="answer">Answer: What is “If you don’t hurry, you will be late”?</span></li>
+    <li><span class="value">400:</span> Does the tense in the “if” part of a first conditional sentence refer to the present or the future?<br />
+        <span class="answer">Answer: What is the present tense?</span></li>
+    <li><span class="value">500:</span> What word connects the two ideas in this sentence: “He’s a great employee, _______, he’s always on time.”<br />
+        <span class="answer">Answer: What is “because” (or “as,” “since”)?</span></li>
+  </ul>
+
+  <!-- Category 4 -->
+  <h2>Category 4: Work Life</h2>
+  <ul class="qset">
+    <li><span class="value">100:</span> This is an advantage of working on a team.<br />
+        <span class="answer">Answer: What is collaboration or sharing ideas (or similar answers)?</span></li>
+    <li><span class="value">200:</span> This is an adjective for a job that makes you feel tired and stressed.<br />
+        <span class="answer">Answer: What is stressful or tiring?</span></li>
+    <li><span class="value">300:</span> The desire to succeed and achieve great things is called this.<br />
+        <span class="answer">Answer: What is ambition?</span></li>
+    <li><span class="value">400:</span> This is a potential downside of a job where you work outdoors.<br />
+        <span class="answer">Answer: What is bad weather?</span></li>
+    <li><span class="value">500:</span> Going straight to work after school allows you to do this, which you can’t do if you go to university first.<br />
+        <span class="answer">Answer: What is earn money immediately?</span></li>
+  </ul>
+
+  <!-- Category 5 -->
+  <h2>Category 5: Grammar Grab Bag</h2>
+  <ul class="qset">
+    <li><span class="value">100:</span> This is the pronoun you would use to replace “the heavy bag.”<br />
+        <span class="answer">Answer: What is “it”?</span></li>
+    <li><span class="value">200:</span> What is the negative form of “I will go”?<br />
+        <span class="answer">Answer: What is “I won’t go”?</span></li>
+    <li><span class="value">300:</span> This punctuation mark is often needed when an “if” clause starts a sentence.<br />
+        <span class="answer">Answer: What is a comma?</span></li>
+    <li><span class="value">400:</span> This word is used to show a contrast, as in: “The job is hard; _______, it’s very rewarding.”<br />
+        <span class="answer">Answer: What is “however” or “nevertheless”?</span></li>
+    <li><span class="value">500:</span> The “past simple” is used to talk about actions that are in what state?<br />
+        <span class="answer">Answer: What is finished or completed?</span></li>
+  </ul>
+
+</body>
+</html>

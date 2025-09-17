@@ -1,0 +1,2572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Text Quest: Recon Patrol (Simplified – Tooltip Fix v2)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            "dark-bg": "#2c3e50",
+            "container-bg": "#34495e",
+            "light-text": "#ecf0f1",
+            accent: "#1abc9c",
+            "accent-dark": "#16a085",
+            highlight: "#f1c40f",
+            location: "#95a5a6",
+            danger: "#e74c3c",
+            "danger-dark": "#c0392b",
+            success: "#2ecc71",
+            "border-color": "#4a6572",
+            info: "#3498db",
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #scene-text {
+            min-height: 80px; /* Maintain minimum height */
+            border-left: 4px solid config('theme.colors.accent');
+            transition: background-color 0.5s ease, opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        #scene-text.speaking {
+            background-color: #4a6572; /* Indicate text is being spoken */
+        }
+        /* Used when showing Ukrainian during memory recall */
+        #scene-text.memory-recall-active {
+             border-left: 4px solid config('theme.colors.highlight');
+        }
+
+        button#restart-button {
+            background-color: config('theme.colors.danger');
+            margin-left: auto;
+            margin-right: auto;
+            width: fit-content;
+        }
+        button#restart-button:hover {
+             background-color: config('theme.colors.danger-dark');
+        }
+        .keyword-highlight {
+            color: config('theme.colors.highlight');
+            font-weight: bold;
+        }
+        .memory-match {
+             color: config('theme.colors.success'); /* Green for matched words */
+             font-weight: bold;
+        }
+        .location-text {
+             font-style: italic;
+             color: config('theme.colors.location');
+             display: block;
+             margin-top: 0.5rem;
+             font-size: 0.9em;
+        }
+        .game-over, .game-success { /* Combined common styles */
+            font-weight: bold;
+            text-align: center;
+            font-size: 1.2em;
+            margin-top: 1rem;
+        }
+        .game-over { color: config('theme.colors.danger'); }
+        .game-success { color: config('theme.colors.success'); }
+
+        #voice-button {
+            transition: background-color 0.3s ease;
+        }
+        #voice-button.listening {
+            background-color: config('theme.colors.info');
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; }
+        }
+        
+        #voice-status {
+            min-height: 1.5em; /* Ensure space for messages */
+            margin-top: 0.75rem;
+            text-align: center;
+            font-style: italic;
+            transition: color 0.3s ease;
+        }
+        /* Hide choice buttons during voice input phase */
+        #choices-container.hidden {
+            display: none;
+        }
+         /* Specific styling for choice buttons (kept simple as they aren't primary interaction) */
+         #choices-container button {
+            opacity: 0.7; /* Slightly faded as they are not primary */
+            cursor: default; /* Not clickable by default */
+         }
+
+
+        #start-challenge-btn { /* Renamed from enable-audio-btn */
+            display: block;
+            margin: 1rem auto;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+         /* Style when audio is enabled */
+        #start-challenge-btn.audio-enabled {
+            background-color: config('theme.colors.success'); /* Green */
+            cursor: default;
+         }
+         #start-challenge-btn.audio-enabled:hover {
+             background-color: config('theme.colors.success'); /* Stay green */
+         }
+         #start-challenge-btn:disabled {
+             background-color: config('theme.colors.location');
+             cursor: not-allowed;
+             opacity: 0.7;
+         }
+
+        #vocab-list-container {
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        #vocab-list-container ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            columns: 2;
+            -webkit-columns: 2;
+            -moz-columns: 2;
+        }
+        #vocab-list-container li {
+            margin-bottom: 0.3rem;
+            color: config('theme.colors.light-text');
+        }
+        #vocab-list-container li .ua-term {
+            color: config('theme.colors.accent');
+            font-weight: 500;
+        }
+        #vocab-list-container.hidden {
+           opacity: 0;
+           visibility: hidden;
+           height: 0;
+           overflow: hidden;
+           margin-bottom: 0; /* Collapse margin */
+           padding: 0; /* Collapse padding */
+           border: none; /* Collapse border */
+        }
+        /* === inline‑translation tooltip ========================================= */
+        .translatable-sentence{cursor:help;}
+      /* … (UNCHANGED GLOBAL STYLES FROM ORIGINAL FILE) … */
+      #translation-tooltip {
+      position: fixed;
+      z-index: 9999;
+      max-width: 80%;
+      background: rgba(52, 73, 94, 0.95);
+      color: #ecf0f1;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      line-height: 1.25;
+      display: none;
+      pointer-events: auto;
+      transition: opacity 0.15s ease;
+    }
+  </style>
+</head>
+<body class="bg-dark-bg text-light-text leading-relaxed">
+
+<div class="max-w-2xl mx-auto my-5 p-5 border border-border-color shadow-lg rounded-lg">
+
+    <button id="start-challenge-btn" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded">
+         Start the challenge 🚀
+    </button>
+
+    <div id="game-container" class="bg-container-bg p-6 rounded-md border border-border-color mt-4">
+        <h1 class="text-accent text-center text-2xl font-bold border-b-2 border-accent-dark pb-2 mb-5">
+            Recon Patrol
+        </h1>
+
+        <div id="vocab-list-container" class="bg-dark-bg p-3 mb-4 rounded border border-border-color text-sm hidden">
+            </div>
+        <div id="scene-text" class="bg-dark-bg p-4 rounded mb-6">
+            Loading...
+        </div>
+        <div id="choices-container" class="space-y-3 mt-4 hidden">
+            </div>
+        <div class="mt-6 text-center">
+             <button id="voice-button" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed">
+                 Speak Action 🎤
+             </button>
+             <div id="feedback-percentage-area" class="text-center font-semibold mt-2 min-h-[1.2em]">
+                </div>
+             <div id="voice-status" class="text-info"></div>
+        </div>
+        <div id="outcome-display" class="mt-4">
+            </div>
+    </div>
+</div>
+<script>
+// --- Game Data (Scenes) ---
+// (Keep gameData object as is - too large to include here, assumed present from original)
+// Teen Adventure – WaveFest Quest (A2 level)
+// Replace your existing gameData / vocabulary chunk with this one.
+// Story practises Unit‑4 weather & disaster vocabulary, road/location nouns,
+// phrasal verbs, and comparatives/superlatives in simple A2 language.
+
+/* === TEEN ROAD‑TRIP ADVENTURE ===
+   WaveFest or Bust!  (Part 1 / 3)
+   Same structure → drop‑in replacement for previous gameData.
+*/
+
+const gameData = {
+  /* ---------- 0. INTRO ---------- */
+  'start': {
+    text: {
+      en: "Friday morning. Grey clouds hang low over Riverside High. You, Sam, Leo and Maya are packing an old green van for WaveFest – the biggest music festival of the year. Tickets? ✓ Snacks? ✓ Excitement? Definitely! [Location: School car park]",
+      ua: "Ранок п’ятниці. Сірі хмари низько висять над школою Ріверсайд. Ти, Сем, Лео та Майя вантажите старий зелений фургон, щоби вирушити на WaveFest – найбільший музичний фестиваль року. Квитки? ✓ Закуски? ✓ Збудження? Безперечно! [Локація: шкільна автостоянка]"
+    },
+    choices: [
+      { text: "Check the weather forecast.", nextScene: 'check_weather' },
+      { text: "Finish packing and jump inside.", nextScene: 'pack_van' },
+      { text: "Ask Maya if she's excited.", nextScene: 'small_talk' }
+    ]
+  },
+
+  /* ---------- 1. WEATHER WARNINGS ---------- */
+  'check_weather': {
+    text: {
+      en: "You check your phone app. It shows a thunderstorm symbol. The forecast warns: *Possible hailstorm on highway A17.* Leo says, “Wow, a hailstorm!” Maya looks worried: “Hailstorms are more dangerous than rain showers.”",
+      // Focus: weather vocab, comparative 'more dangerous than'
+      ua: "Ти перевіряєш додаток на телефоні. Він показує символ грози. Прогноз попереджає: *Можливий град на трасі A17.* Лео каже: «Вау, град!» Майя виглядає стурбованою: «Град небезпечніший, ніж зливи.»"
+    },
+    choices: [
+      { text: "Suggest a safer route: 'Let's come up with a new plan.'", nextScene: 'choose_scenic' }, // Focus: phrasal verb 'come up with'
+      { text: "Say 'Let's carry on! We can't put it off.'", nextScene: 'pack_van' } // Focus: phrasal verbs 'carry on', 'put off'
+    ]
+  },
+
+  'small_talk': {
+    text: {
+      en: "You ask Maya, 'Are you excited for the festival?' She smiles, her eyes brighter than the cloudy sky: “Yes! I can’t wait!” Leo interrupts: “Okay lovebirds, let's go! We need to wake up early tomorrow!”",
+      // Focus: comparative 'brighter than', phrasal verb 'wake up'
+      ua: "Ти питаєш Майю: 'Ти з нетерпінням чекаєш на фестиваль?' Вона посміхається, її очі яскравіші, ніж хмарне небо: «Так! Не можу дочекатися!» Лео перебиває: «Гаразд, закохані, рушаймо! Нам треба завтра рано прокидатися!»"
+    },
+    choices: [
+      { text: "Help Leo start the van.", nextScene: 'pack_van' }
+    ]
+  },
+
+  /* ---------- 2. HIT THE ROAD ---------- */
+  'pack_van': {
+    text: {
+      en: "The engine starts. Music on! You head for highway A17. The weather is cloudy and cool, but everyone is happy.",
+      // Focus: weather vocab
+      ua: "Двигун запущено. Музика грає! Ви прямуєте до траси A17. Погода хмарна і прохолодна, але всі щасливі."
+    },
+    choices: [
+      { text: "Sing along to the music.", nextScene: 'sing_along' },
+      { text: "Look out for road signs.", nextScene: 'road_sign' }
+    ]
+  },
+
+  'choose_scenic': {
+    text: {
+      en: "You decide to take coastal road B9. Maya agrees: 'Good idea. It's longer, but maybe safer than the highway with the hailstorm warning.' Leo finds the route on the GPS.",
+      // Focus: comparative 'safer than', weather vocab
+      ua: "Ви вирішуєте їхати прибережною дорогою B9. Майя погоджується: 'Гарна ідея. Вона довша, але, можливо, безпечніша, ніж шосе з попередженням про град.' Лео знаходить маршрут на GPS."
+    },
+    choices: [
+      { text: "Drive carefully along the coast.", nextScene: 'road_sign' }
+    ]
+  },
+
+   'sing_along': {
+     text: {
+       en: "Everyone sings loudly. It feels like the festival has already started! After the song, you pay attention to the road again.",
+       ua: "Всі голосно співають. Здається, фестиваль вже почався! Після пісні ти знову звертаєш увагу на дорогу."
+     },
+     choices: [
+       { text: "Look out for road signs.", nextScene: 'road_sign' }
+     ]
+   },
+
+  /* ---------- 3. FIRST OBSTACLE ---------- */
+  'road_sign': {
+    text: {
+      en: "You see a road sign: *Pedestrian crossing ahead*. You slow down. An old lady and her small dog are waiting on the pavement.",
+      // Focus: road nouns
+      ua: "Ти бачиш дорожній знак: *Попереду пішохідний перехід*. Ти сповільнюєшся. Старенька пані та її маленький песик чекають на тротуарі."
+    },
+    choices: [
+      { text: "Stop and let them cross.", nextScene: 'good_deed' },
+      { text: "Honk the horn quickly.", nextScene: 'bad_deed' }
+    ]
+  },
+
+  'good_deed': {
+    text: {
+      en: "You stop. The lady smiles and waves. 'Thank you!' Maya says, 'That was kind.' Leo adds, 'Okay, let's carry on!'",
+      // Focus: phrasal verb 'carry on'
+      ua: "Ти зупиняєшся. Пані посміхається і махає. 'Дякую!' Майя каже: 'Це було люб'язно.' Лео додає: 'Гаразд, продовжуймо!'"
+    },
+    choices: [
+      { text: "Drive towards the bridge.", nextScene: 'foggy_bridge' }
+    ]
+  },
+
+  'bad_deed': {
+    text: {
+      en: "You honk. The dog gets scared and jumps! The lady looks upset. You feel a bit bad. 'Maybe honking wasn't the fastest way,' you think.",
+      ua: "Ти сигналиш. Собака лякається і підстрибує! Пані виглядає засмученою. Тобі трохи соромно. 'Можливо, сигналити було не найшвидшим способом,' - думаєш ти."
+    },
+    choices: [
+      { text: "Carry on driving.", nextScene: 'foggy_bridge' } // Focus: phrasal verb 'carry on'
+    ]
+  },
+
+  /* ---------- 4. FOG & ICE ---------- */
+  'foggy_bridge': {
+    text: {
+      en: "You approach a long metal bridge. Thick fog hangs in the air. It's getting colder. Could there be ice on the road?",
+      // Focus: weather vocab, comparative 'colder'
+      ua: "Ви наближаєтеся до довгого металевого мосту. Густий туман висить у повітрі. Стає холодніше. Чи може бути лід на дорозі?"
+    },
+    choices: [
+      { text: "Drive slowly and carefully.", nextScene: 'ice_skid' },
+      { text: "Drive faster to get through the fog quickly.", nextScene: 'skid_alarm' }
+    ]
+  },
+
+  'ice_skid': {
+    text: {
+      en: "Good choice! You drive slowly. The van slips a tiny bit on some ice, but you control it easily. Maya sighs, 'Phew! That ice looked dangerous.'",
+      // Focus: weather vocab
+      ua: "Гарний вибір! Ти їдеш повільно. Фургон трохи ковзає по льоду, але ти легко його контролюєш. Майя зітхає: 'Фух! Той лід виглядав небезпечно.'"
+    },
+    choices: [
+      { text: "You made it across the bridge!", nextScene: 'snack_stop' }
+    ]
+  },
+
+  'skid_alarm': {
+    text: {
+      en: "You drive faster. Suddenly the van spins on hidden ice! *SCREECH!* Everyone shouts! Luckily, you don't crash. Leo says, 'Okay, okay! I'll drive slower now!'",
+      // Focus: weather vocab, comparative 'slower'
+      ua: "Ти їдеш швидше. Раптом фургон заносить на прихованому льоду! *ВЕРЕСК!* Всі кричать! На щастя, ви не розбилися. Лео каже: 'Гаразд, гаразд! Тепер я буду їхати повільніше!'"
+    },
+    choices: [
+      { text: "Continue driving (more carefully!).", nextScene: 'snack_stop' }
+    ]
+  },
+
+  /* ---------- 5. SNACK STOP ---------- */
+  'snack_stop': {
+    text: {
+      en: "You see a roadside billboard: *World’s Best Hot Chocolate → 200 m.* Everyone feels hungry and a bit cold after the icy bridge.",
+      // Focus: road nouns, weather vocab
+      ua: "Ти бачиш придорожній білборд: *Найкраще гаряче какао у світі → 200 м.* Всі зголодніли і трохи змерзли після крижаного мосту."
+    },
+    choices: [
+      { text: "Stop for hot chocolate.", nextScene: 'hot_chocolate_bar' }, // Corrected scene name
+      { text: "Carry on – the weather looks bad.", nextScene: 'storm_warning' } // Focus: phrasal verb 'carry on'
+    ]
+  },
+
+  'hot_chocolate_bar': { // Corrected scene name
+    text: {
+      en: "You stop at the small café. It’s warm inside. You all get hot chocolate. Outside, the wind is picking up. Are those snowflakes?",
+      // Focus: weather vocab
+      ua: "Ви зупиняєтеся біля маленької кав'ярні. Всередині тепло. Ви всі берете гарячий шоколад. Надворі піднімається вітер. Невже це сніжинки?"
+    },
+    choices: [
+      { text: "Drink quickly and go.", nextScene: 'storm_warning' },
+      { text: "Offer Maya your extra marshmallow.", nextScene: 'flirt_cocoa' }
+    ]
+  },
+
+  'flirt_cocoa': {
+    text: {
+      en: "You offer Maya the marshmallow. She smiles, 'Thanks! That's very kind.' Leo clears his throat loudly. 'Ahem! Are we leaving soon?'",
+      ua: "Ти пропонуєш Майї зефірку. Вона посміхається: 'Дякую! Це дуже люб'язно.' Лео голосно прокашлюється. 'Кхм! Ми скоро їдемо?'"
+    },
+    choices: [
+      { text: "Yes, back to the van. Look at those clouds!", nextScene: 'storm_warning' }
+    ]
+  },
+
+  /* ---------- 6. STORM & HAIL ---------- */
+  'storm_warning': {
+    text: {
+      en: "You get back in the van. The sky is much darker now. Black clouds gather quickly. The wind picks up, and suddenly, *ping! ping!* small hailstones hit the roof! The radio weather report says: “Warning! Hailstorm developing near Pine Valley!”",
+      // Focus: weather vocab (clouds, wind, hailstones, hailstorm)
+      ua: "Ви повертаєтеся до фургона. Небо тепер набагато темніше. Чорні хмари швидко збираються. Вітер посилюється, і раптом, *пінг! пінг!* маленькі градини б'ють по даху! Радіопрогноз погоди повідомляє: «Увага! Поблизу Пайн-Веллі розвивається град!»"
+    },
+    choices: [
+      { text: "Find shelter quickly! Look for a bridge.", nextScene: 'under_bridge' },
+      { text: "Try to drive through it – carry on!", nextScene: 'hail_damage' } // Focus: phrasal verb 'carry on'
+    ]
+  },
+
+  'under_bridge': {
+    text: {
+      en: "You see an old stone bridge ahead and drive under it just as the hailstorm gets heavier. It's safer here, but water is rising on the road under the bridge – a small flood is starting!",
+      // Focus: weather/disaster vocab (hailstorm, flood), comparative 'heavier', adjective 'safer'
+      ua: "Попереду видніється старий кам'яний міст, і ви заїжджаєте під нього саме тоді, коли град посилюється. Тут безпечніше, але вода на дорозі під мостом піднімається – починається невелика повінь!"
+    },
+    choices: [
+      { text: "Wait for the hailstorm to stop.", nextScene: 'after_hail' },
+      { text: "This looks bad. Turn back?", nextScene: 'road_block_flood' }
+    ]
+  },
+
+  'hail_damage': {
+    text: {
+      en: "You decide to carry on driving. Big mistake! The hailstones get bigger, like marbles! *CRACK!* A large hailstone hits the windscreen, making a crack. You can hardly see! Leo shouts, 'We must stop!'",
+      // Focus: weather vocab (hailstones), comparative 'bigger'
+      ua: "Ви вирішуєте продовжувати їхати. Велика помилка! Градини стають більшими, як кульки! *ТРІСК!* Велика градина вдаряє в лобове скло, роблячи тріщину. Майже нічого не видно! Лео кричить: 'Треба зупинитися!'"
+    },
+    choices: [
+      { text: "Pull over under some trees quickly.", nextScene: 'after_hail' }
+    ]
+  },
+
+  'after_hail': {
+    text: {
+      en: "After ten noisy minutes, the hailstorm stops. Silence. The ground is covered in white hailstones. Maya looks out: “Wow, it looks like winter, not spring!” The air feels freezing.",
+      // Focus: weather vocab (hailstorm, winter, spring, freezing)
+      ua: "Після десяти галасливих хвилин град припиняється. Тиша. Земля вкрита білими градинами. Майя визирає: «Вау, схоже на зиму, а не на весну!» Повітря здається дуже холодним."
+    },
+    choices: [
+      { text: "Check the van for damage.", nextScene: 'van_check' }
+    ]
+  },
+
+  /* ---------- 7. DAMAGE & DETOUR ---------- */
+  'van_check': {
+    text: {
+      en: "You check the van. The windscreen has a crack, but it seems okay to drive. Bad news: a message on the GPS shows the main road ahead is closed. The radio says a mudslide blocked it during the storm!",
+      // Focus: disaster vocab (mudslide, storm)
+      ua: "Ви перевіряєте фургон. На лобовому склі є тріщина, але, здається, їхати можна. Погана новина: повідомлення на GPS показує, що головна дорога попереду закрита. По радіо кажуть, що її перекрив селевий зсув під час шторму!"
+    },
+    choices: [
+      { text: "Follow the official police detour.", nextScene: 'detour_valley' },
+      { text: "Look for a short-cut on the map.", nextScene: 'mountain_track_choice' }
+    ]
+  },
+
+  'road_block_flood': {
+    text: {
+      en: "You turn back from the flooding under the bridge. You reach the highway again, but see flashing police lights. A police officer stops you. 'Sorry, road closed ahead – flood damage. You need to take the detour through Pine Valley.'",
+      // Focus: disaster vocab (flood)
+      ua: "Ви повертаєте назад від затоплення під мостом. Ви знову виїжджаєте на шосе, але бачите миготливі поліцейські вогні. Поліцейський зупиняє вас. 'Вибачте, дорога попереду закрита – пошкодження через повінь. Вам потрібно їхати об'їздом через Пайн-Веллі.'"
+    },
+    choices: [
+      { text: "Okay, take the Pine Valley detour.", nextScene: 'detour_valley' }
+    ]
+  },
+
+  /* ---------- 8. DUSK IN THE VALLEY ---------- */
+  'detour_valley': {
+    text: {
+      en: "You take the detour into Pine Valley. The road is narrow, with tall pine trees on both sides. It's getting dark quickly here, much darker than on the open highway. The air smells fresh and cool after the rain.",
+      // Focus: comparative 'darker than', weather 'cool', 'rain'
+      ua: "Ви їдете об'їздом у Пайн-Веллі. Дорога вузька, з високими соснами по обидва боки. Тут швидко темніє, набагато темніше, ніж на відкритому шосе. Повітря пахне свіжістю і прохолодою після дощу."
+    },
+    choices: [
+      { text: "Turn on the headlights and carry on.", nextScene: 'deer_alert' }, // Focus: phrasal verb 'carry on'
+      { text: "It's late. Suggest finding a place to stop.", nextScene: 'camp_spot_idea' }
+    ]
+  },
+
+  'mountain_track_choice': {
+    text: {
+      en: "Leo looks at an old paper map. 'There's a small mountain track here. It looks steeper, but maybe faster than the long detour?' Maya says, 'Mountain tracks can be hazardous after storms.'",
+      // Focus: comparative 'steeper', 'faster', adjective 'hazardous'
+      ua: "Лео дивиться на стару паперову карту. 'Тут є невелика гірська стежка. Вона виглядає крутішою, але, можливо, швидша, ніж довгий об'їзд?' Майя каже: 'Гірські стежки можуть бути небезпечними після штормів.'"
+    },
+    choices: [
+      { text: "Try the mountain track (risky).", nextScene: 'mountain_track_stuck' },
+      { text: "Take the safer detour.", nextScene: 'detour_valley' } // Focus: comparative 'safer'
+    ]
+  },
+
+  'mountain_track_stuck': {
+    text: {
+      en: "You turn onto the narrow mountain track. It is very steep and muddy from the rain and melting hail. Suddenly, the van's wheels spin... and sink into deep, soft mud! You are stuck!",
+      // Focus: weather/disaster vocab (muddy, rain, hail)
+      ua: "Ви звертаєте на вузьку гірську стежку. Вона дуже крута і багниста від дощу та талого граду. Раптом колеса фургона пробуксовують... і грузнуть у глибокій м'якій багнюці! Ви застрягли!"
+    },
+    choices: [
+      { text: "Try to call for help (check phone signal).", nextScene: 'no_signal' },
+      { text: "Try to dig the van out.", nextScene: 'dig_out' }
+    ]
+  },
+
+  /* ---------- 9. WILDLIFE / GETTING UNSTUCK ---------- */
+  'deer_alert': {
+    text: {
+      en: "You carry on driving through the dark valley. Suddenly, two bright eyes reflect in your headlights! A huge deer stands in the middle of the road! Leo brakes hard. The van stops just in time. Wow!",
+      ua: "Ви продовжуєте їхати темною долиною. Раптом у світлі фар відбиваються два яскраві ока! Величезний олень стоїть посеред дороги! Лео різко гальмує. Фургон зупиняється в останній момент. Вау!"
+    },
+    choices: [
+      { text: "Wait for the deer to move.", nextScene: 'deer_moves' },
+      { text: "Honk the horn gently.", nextScene: 'deer_moves' }
+    ]
+  },
+
+   'deer_moves': {
+     text: {
+       en: "After a moment, the deer calmly walks into the forest. Everyone breathes again. 'That was close!' says Sam. 'Let's find somewhere to stop for the night. It's not safe to drive here in the dark.'",
+       // Focus: adjective 'safe'
+       ua: "За мить олень спокійно заходить у ліс. Усі знову дихають. 'Ледь не сталося!' - каже Сем. 'Давайте знайдемо десь місце для зупинки на ніч. Тут небезпечно їхати в темряві.'"
+     },
+     choices: [
+       { text: "Agree. Look for a safe spot.", nextScene: 'camp_spot_idea' }
+     ]
+   },
+
+  'no_signal': {
+    text: {
+      en: "You all check your phones. Zero bars. 'No service' displayed on every screen. You can't call for assistance. Sam looks worried. 'What do we do now? Should we give up?' Leo shakes his head. 'No! We need to come up with a plan!'",
+      // Focus: phrasal verbs 'give up', 'come up with'
+      ua: "Ви всі перевіряєте телефони. Нуль поділок. 'Немає мережі' на кожному екрані. Ви не можете викликати допомогу. Сем виглядає стурбованим. 'Що нам тепер робити? Може, здамося?' Лео хитає головою. 'Ні! Нам треба вигадати план!'"
+    },
+    choices: [
+      { text: "Suggest climbing the hill for signal.", nextScene: 'signal_hill' },
+      { text: "Suggest digging the van out.", nextScene: 'dig_out' }
+    ]
+  },
+
+  'dig_out': {
+    text: {
+      en: "You find shovels in the back of the van. Everyone starts digging. The mud is thick and heavy. It's hard work, much harder than packing the van! But after 30 minutes, the wheels are free!",
+      // Focus: comparative 'harder than'
+      ua: "Ви знаходите лопати в задній частині фургона. Всі починають копати. Багнюка густа і важка. Це важка робота, набагато важча, ніж пакувати фургон! Але через 30 хвилин колеса вільні!"
+    },
+    choices: [
+      { text: "Try driving forward on the track.", nextScene: 'avalanche_risk' },
+      { text: "Carefully turn back to the main road/detour.", nextScene: 'valley_fall' }
+    ]
+  },
+
+  'signal_hill': {
+    text: {
+      en: "You and Maya decide to climb the nearest hill. It's steep and slippery. At the top, Maya's phone picks up one tiny bar of signal! You quickly call roadside assistance. They say they can send a truck, but it will take three hours because of the road conditions.",
+      ua: "Ти і Майя вирішуєте піднятися на найближчий пагорб. Він крутий і слизький. На вершині телефон Майї ловить одну крихітну поділку сигналу! Ви швидко дзвоните в дорожню службу. Вони кажуть, що можуть надіслати евакуатор, але це займе три години через дорожні умови."
+    },
+    choices: [
+      { text: "Go back and try digging while waiting.", nextScene: 'dig_out' },
+      { text: "Wait three hours for the tow truck.", nextScene: 'wait_truck' }
+    ]
+  },
+
+  'wait_truck': {
+    text: {
+      en: "You decide to wait. It gets colder and darker. Three hours feels like forever. The tow truck finally arrives, but by the time you are back on the road, you know you have missed the first day of WaveFest. <span class='game-over'>MISSION FAILED (Too Late)</span>",
+      // Focus: comparative 'colder', 'darker'
+      ua: "Ви вирішуєте чекати. Стає холодніше і темніше. Три години здаються вічністю. Евакуатор нарешті приїжджає, але до того часу, як ви повертаєтеся на дорогу, ви знаєте, що пропустили перший день WaveFest. <span class='game-over'>МІСІЯ ПРОВАЛЕНА (Занадто пізно)</span>"
+    },
+    choices: [
+      { text: "Restart?", nextScene: 'start' }
+    ]
+  },
+
+  /* ---------- 10. CAMPING SPOT IDEA ---------- */
+  'camp_spot_idea': {
+    text: {
+      en: "Driving slowly, you spot a closed petrol station with a flat, dry area next to it under a lamp post. 'Let's stop here for the night,' suggests Maya. 'It looks safer than driving in this dark valley.'",
+      // Focus: comparative 'safer than'
+      ua: "Їдучи повільно, ви помічаєте зачинену заправку з рівною, сухою ділянкою поруч під ліхтарним стовпом. 'Давайте зупинимося тут на ніч,' - пропонує Майя. 'Це виглядає безпечніше, ніж їхати цією темною долиною.'"
+    },
+    choices: [
+      { text: "Good idea. Park the van.", nextScene: 'camp_spot_parked' }
+    ]
+  },
+
+  'camp_spot_parked': {
+    text: {
+      en: "You park the van. It's quiet here, except for the wind in the pines. You feel tired after the long, difficult day.",
+      ua: "Ви паркуєте фургон. Тут тихо, тільки вітер шумить у соснах. Ви відчуваєте втому після довгого, важкого дня."
+    },
+    choices: [
+      { text: "Make a small campfire to warm up.", nextScene: 'campfire_romance' },
+      { text: "Too tired. Sleep in the van.", nextScene: 'sleep_van' }
+    ]
+  },
+
+  /* ---------- 10A. CAMPFIRE & LOVE ---------- */
+  'campfire_romance': {
+    text: {
+      en: "You make a small campfire. The flames dance. The air is cool, and the stars look brighter than city lights. Maya sits close to you. 'This trip is difficult,' she says, 'but we didn't give up!'",
+      // Focus: comparative 'brighter than', phrasal verb 'give up'
+      ua: "Ви розпалюєте невелике багаття. Полум’я танцює. Повітря прохолодне, а зорі виглядають яскравішими, ніж міські вогні. Майя сідає близько до тебе. «Ця подорож важка,» - каже вона, - «але ми не здалися!»"
+    },
+    choices: [
+      { text: "Agree: 'Yes, we'll carry on!'", nextScene: 'dawn_rain' }, // Focus: phrasal verb 'carry on'
+      { text: "Say 'It's warmer near the fire.'", nextScene: 'hand_hold' }
+    ]
+  },
+
+  'sleep_van': {
+    text: {
+      en: "Everyone is too tired for a fire. You all try to sleep in the van. It's not very comfortable. You think about the festival – it feels far away.",
+      ua: "Всі занадто втомлені для багаття. Ви всі намагаєтеся заснути у фургоні. Це не дуже зручно. Ти думаєш про фестиваль – він здається таким далеким."
+    },
+    choices: [
+      { text: "Finally fall asleep.", nextScene: 'dawn_rain' }
+    ]
+  },
+
+  'hand_hold': {
+    text: {
+      en: "Maya smiles. 'Yes, it is warmer here.' You both look at the fire. Leo coughs. 'Time to sleep soon? We need to wake up early!'",
+      // Focus: comparative 'warmer', phrasal verb 'wake up'
+      ua: "Майя посміхається. 'Так, тут тепліше.' Ви обоє дивитеся на вогонь. Лео кашляє. 'Скоро спати? Нам треба рано прокидатися!'"
+    },
+    choices: [
+      { text: "Okay, time to rest.", nextScene: 'dawn_rain' }
+    ]
+  },
+
+  /* ---------- 11. DAWN & RAIN ---------- */
+  'dawn_rain': {
+    text: {
+      en: "You wake up. Gentle rain is falling. It's softer than the hailstorm yesterday, but it's still cold. Everyone feels stiff. Leo checks the GPS: '120 km to WaveFest!'",
+      // Focus: comparative 'softer than', weather vocab
+      ua: "Ти прокидаєшся. Йде легкий дощ. Він м'якший, ніж вчорашній град, але все ще холодно. Всі почуваються задерев'янілими. Лео перевіряє GPS: '120 км до WaveFest!'"
+    },
+    choices: [
+      { text: "Eat breakfast quickly and carry on.", nextScene: 'petrol_low' }, // Focus: phrasal verb 'carry on'
+      { text: "Try to dry wet clothes first.", nextScene: 'clothes_dry' }
+    ]
+  },
+
+  'clothes_dry': {
+    text: {
+      en: "You try to dry some clothes near the dying campfire. It uses up the last of the wood. The clothes are a bit drier, but you wasted time, and the van used petrol for heating.",
+      // Focus: phrasal verb 'use up', comparative 'drier'
+      ua: "Ви намагаєтеся висушити одяг біля згасаючого багаття. Це використовує останні дрова. Одяг трохи сухіший, але ви змарнували час, і фургон використав бензин на обігрів."
+    },
+    choices: [
+      { text: "Okay, let's go now!", nextScene: 'petrol_low' }
+    ]
+  },
+
+  /* ---------- 12. PETROL PROBLEM ---------- */
+  'petrol_low': {
+    text: {
+      en: "Leo starts the van. Oh no! The fuel light is flashing red – almost empty! The GPS shows the nearest petrol station is 15 km away, but the main road is still closed because of the flood.",
+      // Focus: disaster vocab (flood)
+      ua: "Лео заводить фургон. О ні! Індикатор пального блимає червоним – майже порожньо! GPS показує, що найближча заправка за 15 км, але головна дорога все ще закрита через повінь."
+    },
+    choices: [
+      { text: "Take the official detour (safer).", nextScene: 'valley_fall' },
+      { text: "Try the mountain track (riskier).", nextScene: 'mountain_track_stuck' }
+    ]
+  },
+
+  /* ---------- 13. DETOUR CONTINUES / AVALANCHE ---------- */
+  'valley_fall': {
+    text: {
+      en: "You carry on through Pine Valley. The road seems clear after the storm. Suddenly, you hear a loud rumble from the mountain above!",
+      // Focus: phrasal verb 'carry on', disaster vocab (storm)
+      ua: "Ви продовжуєте їхати через Пайн-Веллі. Дорога здається чистою після шторму. Раптом ви чуєте гучний гуркіт з гори вгорі!"
+    },
+    choices: [
+      { text: "What was that?", nextScene: 'avalanche_risk' }
+    ]
+  },
+
+  'avalanche_risk': {
+    text: {
+      en: "An avalanche! Snow and rocks slide down the mountain, blocking the road behind you! You can't turn back now. The only way is forward.",
+      // Focus: disaster vocab (avalanche)
+      ua: "Лавина! Сніг і каміння зсуваються з гори, перекриваючи дорогу позаду вас! Тепер ви не можете повернути назад. Єдиний шлях – вперед."
+    },
+    choices: [
+      { text: "Drive forward carefully on the narrow road.", nextScene: 'cliff_drive' }
+    ]
+  },
+
+  'cliff_drive': {
+    text: {
+      en: "The road ahead is very narrow, right on the edge of a cliff! It looks more dangerous than the icy bridge. Drive very slowly.",
+      // Focus: comparative 'more dangerous than'
+      ua: "Дорога попереду дуже вузька, прямо на краю скелі! Вона виглядає небезпечнішою, ніж крижаний міст. Їдьте дуже повільно."
+    },
+    choices: [
+      { text: "Keep going slowly.", nextScene: 'bridge_quake' },
+      { text: "Stop and check if the road is stable.", nextScene: 'road_crack' }
+    ]
+  },
+
+  /* ---------- 14. BRIDGE & QUAKE ---------- */
+  'road_crack': {
+    text: {
+      en: "You stop. As you look, a crack appears in the road! 'Quick! Drive!' shouts Maya. You drive fast just as some rocks fall behind you!",
+      ua: "Ви зупиняєтеся. Поки ви дивитеся, на дорозі з'являється тріщина! 'Швидко! Їдь!' - кричить Майя. Ви швидко їдете саме тоді, коли позаду вас падає каміння!"
+    },
+    choices: [
+      { text: "Head for the big steel bridge.", nextScene: 'bridge_quake' }
+    ]
+  },
+
+  'bridge_quake': {
+    text: {
+      en: "You reach a huge steel bridge. It looks very long. An engineer waves you to stop. 'Small earthquake damaged a cable,' he explains. 'Wait here. We let cars cross one by one.'",
+      // Focus: disaster vocab (earthquake)
+      ua: "Ви доїжджаєте до величезного сталевого мосту. Він виглядає дуже довгим. Інженер махає вам зупинитися. 'Невеликий землетрус пошкодив трос,' - пояснює він. 'Чекайте тут. Ми пропускаємо машини по одній.'"
+    },
+    choices: [
+      { text: "Wait patiently.", nextScene: 'across_bridge' },
+      { text: "Try to sneak past the queue.", nextScene: 'queue_jump' }
+    ]
+  },
+
+  'queue_jump': {
+    text: {
+      en: "You try to drive past the waiting cars, but a guard stops you. 'Hey! Wait your turn! Bridge is closed down now for repair!' Oh no! You have to wait even longer.",
+      // Focus: phrasal verb 'close down'
+      ua: "Ви намагаєтеся проїхати повз машини, що чекають, але охоронець зупиняє вас. 'Гей! Чекайте своєї черги! Міст зараз закрили на ремонт!' О ні! Вам доведеться чекати ще довше."
+    },
+    choices: [
+      { text: "Wait.", nextScene: 'across_bridge' }
+    ]
+  },
+
+  'across_bridge': {
+    text: {
+      en: "Finally, it's your turn. You drive slowly onto the swaying bridge. It feels very high! You make it to the other side safely! Everyone cheers.",
+      ua: "Нарешті, ваша черга. Ви повільно виїжджаєте на міст, що гойдається. Здається дуже високо! Ви безпечно добираєтеся на інший бік! Всі радіють."
+    },
+    choices: [
+      { text: "Drive towards the city lights.", nextScene: 'city_smoke' }
+    ]
+  },
+
+  /* ---------- 15. CITY OUTSKIRTS & FIRE ---------- */
+  'city_smoke': {
+    text: {
+      en: "It's getting dark again. You see the lights of Coastville ahead. But wait! There is black smoke rising from the hill near the festival. The radio reports a small forest fire started by the thunderstorm!",
+      // Focus: disaster vocab (forest fire, thunderstorm)
+      ua: "Знову темніє. Попереду видно вогні Коствіля. Але зачекайте! З пагорба біля фестивалю піднімається чорний дим. По радіо повідомляють про невелику лісову пожежу, спричинену грозою!"
+    },
+    choices: [
+      { text: "Go and see if the firefighters need help.", nextScene: 'help_firefighters' },
+      { text: "Try to find a different road to the festival.", nextScene: 'side_road' }
+    ]
+  },
+
+  'help_firefighters': {
+    text: {
+      en: "You drive closer. Firefighters are working hard. You offer to help. You carry water and look after some tired people. The fire chief thanks you. 'You kids are great! Here, take these VIP passes for the festival!'",
+      // Focus: phrasal verb 'look after'
+      ua: "Ви під'їжджаєте ближче. Пожежники важко працюють. Ви пропонуєте допомогу. Ви носите воду та піклуєтеся про втомлених людей. Начальник пожежної частини дякує вам. 'Ви чудові діти! Ось, візьміть ці VIP-перепустки на фестиваль!'"
+    },
+    choices: [
+      // *** Added flag setting here ***
+      { text: "Thank them and go to the festival gate!", setFlags: ['has_vip_pass'], nextScene: 'gate_line' }
+    ]
+  },
+
+  'side_road': {
+    text: {
+      en: "You find a small side road. But many other cars had the same idea! The traffic is very slow. You might miss the start of the festival!",
+      ua: "Ви знаходите невелику бічну дорогу. Але багато інших машин мали ту ж ідею! Рух дуже повільний. Ви можете пропустити початок фестивалю!"
+    },
+    choices: [
+      { text: "Park the van and walk.", nextScene: 'gate_line' },
+      { text: "Give up, it's too late.", nextScene: 'generic_fail' } // Focus: phrasal verb 'give up'
+    ]
+  },
+
+  /* ---------- 16. FESTIVAL GATE & FINALE ---------- */
+  'gate_line': {
+    text: {
+      en: "You finally reach the festival gate! There's a huge crowd. The music is loud! It's raining again, but it's just a mild shower this time.",
+      // Focus: weather vocab (rain, shower, mild)
+      ua: "Ви нарешті дістаєтеся до воріт фестивалю! Тут величезний натовп. Музика гучна! Знову йде дощ, але цього разу це лише легка злива."
+    },
+    choices: [
+      // Provide choice based on previous actions (VIP pass)
+      { text: "Use the VIP passes!", checkRequired: 'has_vip_pass', nextScene: 'vip_entry' },
+      { text: "Wait in the normal queue.", checkRequired: '!has_vip_pass', nextScene: 'regular_entry' },
+      { text: "Wait in the normal queue (even with VIP pass).", checkRequired: 'has_vip_pass', nextScene: 'regular_entry' }
+    ]
+  },
+
+  'vip_entry': {
+    text: {
+      en: "You show the VIP passes. The guard smiles. 'Welcome, heroes! Go right in!' You walk past the long queue. Inside, the lights and music are amazing!",
+      ua: "Ви показуєте VIP-перепустки. Охоронець посміхається. 'Ласкаво просимо, герої! Проходьте прямо!' Ви проходите повз довгу чергу. Всередині світло та музика дивовижні!"
+    },
+    choices: [
+      { text: "Go straight to the main stage!", nextScene: 'main_stage_arrival' }
+    ]
+  },
+
+  'regular_entry': {
+    text: {
+      en: "You wait in the queue. It moves slowly. Finally, you are inside! Fireworks explode over the main stage!",
+      ua: "Ви чекаєте в черзі. Вона рухається повільно. Нарешті, ви всередині! Над головною сценою вибухають феєрверки!"
+    },
+    choices: [
+      { text: "Run towards the main stage!", nextScene: 'main_stage_arrival' }
+    ]
+  },
+
+  'main_stage_arrival': {
+    text: {
+      en: "You reach the main stage just as Cloud‑9 starts playing! The music is loud, the crowd is cheering. You look at Maya, she is smiling. You made it!",
+      ua: "Ви добираєтеся до головної сцени саме тоді, коли Cloud‑9 починає грати! Музика гучна, натовп аплодує. Ти дивишся на Майю, вона посміхається. Ви це зробили!"
+    },
+    choices: [
+      { text: "Enjoy the concert!", nextScene: 'end_success' }
+    ]
+  },
+
+  /* ---------- END STATES ---------- */
+  'end_success': {
+    text: {
+      en: "You survived the journey! Hailstorms, floods, mudslides, avalanches, maybe even a forest fire... but you didn't give up. You carried on! Now enjoy the festival! <span class='game-success'>ADVENTURE COMPLETE! WaveFest!</span>",
+      // Focus: phrasal verbs 'give up', 'carry on', disaster vocab recap
+      ua: "Ви пережили подорож! Град, повені, селеві зсуви, лавини, можливо, навіть лісова пожежа... але ви не здалися. Ви продовжували! Тепер насолоджуйтесь фестивалем! <span class='game-success'>ПРИГОДУ ЗАВЕРШЕНО! WaveFest!</span>"
+    },
+    choices: [
+      { text: "Play Again?", nextScene: 'start' }
+    ]
+  },
+
+  'generic_fail': {
+    text: {
+      en: "The journey was too difficult. Maybe you got stuck, ran out of time, or decided to give up. WaveFest will have to wait for another year. <span class='game-over'>MISSION FAILED</span>",
+      // Focus: phrasal verb 'give up'
+      ua: "Подорож була занадто складною. Можливо, ви застрягли, у вас закінчився час, або ви вирішили здатися. WaveFest доведеться почекати наступного року. <span class='game-over'>МІСІЮ ПРОВАЛЕНО</span>"
+    },
+    choices: [
+      { text: "Restart Adventure?", nextScene: 'start' }
+    ]
+  }
+}; // End of gameData
+
+
+
+
+// Vocabulary based on the provided lists for the WaveFest adventure
+const vocabulary = [
+  // Weather & Temperature
+  "cloud", "cloudy", "snowflake", "frost", "shower", "sunny", "mist", "thunderstorm",
+  "wind", "hailstorm", "fog", "ice", "freezing", "hot", "cool", "mild", "sweltering",
+  "rain", // Added from game text
+  "weather", "forecast", // Added from game text
+
+  // Disasters
+  "hurricane", "flood", "mudslide", "earthquake", "tsunami", "drought",
+  "volcanic eruption", "forest fire", "avalanche", "storm", // Added from game text
+
+  // Road / Place Nouns
+  "road sign", "pedestrian crossing", "billboard", "shop sign", "traffic light",
+  "bus stop", "pavement", "street corner", "lamp post", "fire hydrant", "highway",
+  "route", "coast", "lighthouse", "bridge", "track", "valley", "cliff", "edge",
+  "petrol station", "roadside", "city", "outskirts", "hill", "gate", "entrance",
+  "car park", // Added from game text
+
+  // People & Roles
+  "pedestrian", "lady", "driver", // Added from game text
+  "engineer", "guard", "police", "firefighter", "organiser", "staff", "electrician", // Added from game text
+  "band", "crowd", // Added from game text
+
+  // Objects & Things
+  "van", "ticket", "snack", "bag", "engine", "GPS", "playlist", "dog", "leash",
+  "tyre", "windscreen", "milkshake", "chocolate", "marshmallow", "roof", "radio",
+  "hailstone", "crack", "traffic", "light", "shovel", "mud", "phone", "signal",
+  "service", "tow truck", "thermometer", "cable", "asphalt", "suspension bridge",
+  "water", "bolt", "smoke", "generator", "megaphone", "transformer", "fuel line",
+  "duct tape", "VIP pass", "poncho", "cocoa", "fireworks", "confetti", "couch", // Added from game text
+
+  // Actions & Events
+  "festival", "trip", "music", "love", "mood", "warm-up", "view", "karma", "lesson",
+  "crash", "solo", "break", "warning", "damage", "detour", "assistance", "rumble",
+  "earthquake", "repair", "blackout", "power cut", "groan", "encore", "chorus", // Added from game text
+
+  // Phrasal Verbs
+  "look after", "wake up", "put off", "carry on", "give up", "come up with", "use up",
+  "close down", "pack", "check", "throw", "jump", "head for", "start", "take off", // Added from game text
+  "sing along", "slow down", "step onto", "brake", "wave", "honk", "spin", "slip", // Added from game text
+  "stop", "apologise", "roll over", "skid", "control", "gasp", "yell", "race", // Added from game text
+  "promise", "growl", "pick up", "rattle", "gather", "pull off", "block", "flash", // Added from game text
+  "sink", "dig out", "climb", "pick up (signal)", "slide down", "hug", "shake", // Added from game text
+  "power up", "sprint", "fall", "sway", "wave (cars)", "creep", "count", "make it", // Added from game text
+  "cheer", "glow", "rise", "volunteer", "hand out", "carry", "miss", "build up", // Added from game text
+  "run", "check (tickets)", "crawl", "boom", "hit", "jump", "cut off", "die", // Added from game text
+  "sputter", "figure out", "tighten", "roar", "blaze", "save", "appear", "invite", // Added from game text
+
+  // Misc Grammar Words (Comparatives, Adjectives, etc.)
+  "bigger", "smaller", "hotter", "colder", "more dangerous", "safest", "longer",
+  "more beautiful", "kinder", "faster", "slower", "darker", "steeper", "quieter",
+  "brighter", "warmer", "softer", "lower", "heavier", "closer", "wider", "greater", // Added from game text
+  "grey", "green", "old", "biggest", "possible", "hazardous", "excited", "awesome",
+  "foggy", "sunny", "scenic", "bright", "gentle", "impatient", "kind", "thick",
+  "icy", "long", "metal", "ghostly", "safe", "lucky", "coolest", "tiny", "warm",
+  "odd", "sweet", "dark", "black", "marble-size", "worst", "stone", "fast", "white",
+  "spring", "winter", "good", "bad", "small", "closed", "main", "flashing", "narrow",
+  "soft", "stuck", "dry", "flat", "fancy", "awake", "farther", "stiff", "hopeful",
+  "spare", "empty", "official", "unmarked", "nearby", "heavy", "free", "three hours",
+  "wooden", "steel", "two football fields", "damaged", "patiently", "twice", "halfway",
+  "loud", "huge", "neon", "sleepy", "steaming", "backup", "loose", "five minutes",
+  "last", "off-key", "perfect", "happy", // Added from game text
+
+  // Basic Function Words
+  "a", "the", "is", "are", "was", "were", "and", "or", "but", "on", "in", "at", "of",
+  "for", "with", "to", "from", "ahead", "onto", "under", "than", "like", "how", "what",
+  "when", "where", "why", "if", "maybe", "suddenly", "anyway", "luckily", "already",
+  "still", "just", "ever", "never", "ago", "later", "first", "now", "then", "only",
+  "almost", "even", "also", "too", "very", "really", "together", "around", "behind",
+  "across", "through", "towards", "above", "near", "next", "finally", "eventually",
+  "carefully", "politely", "straight", "quickly", "slowly", "loudly", "gently", // Added adverbs
+  "yes", "no", "✓" // Added from game text
+];
+
+
+// Translations for the WaveFest vocabulary (Ukrainian)
+const vocabTranslations = {
+  // Weather & Temperature
+  "cloud": "хмара", "cloudy": "хмарний", "snowflake": "сніжинка", "frost": "паморозь/іній",
+  "shower": "злива (коротка)", "sunny": "сонячний", "mist": "імла/туман", "thunderstorm": "гроза",
+  "wind": "вітер", "hailstorm": "град", "fog": "туман (густіший)", "ice": "лід",
+  "freezing": "дуже холодний", "hot": "спекотний", "cool": "прохолодний", "mild": "м’який (про погоду)",
+  "sweltering": "дуже спекотний", "rain": "дощ", "weather": "погода", "forecast": "прогноз",
+
+  // Disasters
+  "hurricane": "ураган", "flood": "повінь", "mudslide": "селевий зсув", "earthquake": "землетрус",
+  "tsunami": "цунамі", "drought": "посуха", "volcanic eruption": "виверження вулкана",
+  "forest fire": "лісова пожежа", "avalanche": "лавина", "storm": "шторм / буря",
+
+  // Road / Place Nouns
+  "road sign": "дорожній знак", "pedestrian crossing": "пішохідний перехід", "billboard": "білборд",
+  "shop sign": "вивіска магазину", "traffic light": "світлофор", "bus stop": "автобусна зупинка",
+  "pavement": "тротуар", "street corner": "ріг вулиці", "lamp post": "ліхтарний стовп",
+  "fire hydrant": "пожежний гідрант", "highway": "шосе / траса", "route": "маршрут",
+  "coast": "узбережжя", "lighthouse": "маяк", "bridge": "міст", "track": "стежка / колія",
+  "valley": "долина", "cliff": "скеля / круча", "edge": "край", "petrol station": "АЗС / заправка",
+  "roadside": "узбіччя", "city": "місто", "outskirts": "околиці", "hill": "пагорб",
+  "gate": "ворота", "entrance": "вхід", "car park": "автостоянка",
+
+  // People & Roles
+  "pedestrian": "пішохід", "lady": "пані / жінка", "driver": "водій", "engineer": "інженер",
+  "guard": "охоронець", "police": "поліція", "firefighter": "пожежник", "organiser": "організатор",
+  "staff": "персонал", "electrician": "електрик", "band": "гурт (музичний)", "crowd": "натовп",
+
+  // Objects & Things
+  "van": "фургон", "ticket": "квиток", "snack": "закуска / перекус", "bag": "сумка / мішок",
+  "engine": "двигун", "GPS": "GPS / навігатор", "playlist": "плейлист", "dog": "собака",
+  "leash": "повідок", "tyre": "шина", "windscreen": "лобове скло", "milkshake": "мілкшейк",
+  "chocolate": "шоколад", "marshmallow": "зефір / маршмелоу", "roof": "дах", "radio": "радіо",
+  "hailstone": "градина", "crack": "тріщина", "traffic": "дорожній рух", "light": "світло / вогонь",
+  "shovel": "лопата", "mud": "багнюка / бруд", "phone": "телефон", "signal": "сигнал",
+  "service": "мережа / обслуговування", "tow truck": "евакуатор", "thermometer": "термометр",
+  "cable": "кабель", "asphalt": "асфальт", "suspension bridge": "підвісний міст", "water": "вода",
+  "bolt": "болт", "smoke": "дим", "generator": "генератор", "megaphone": "мегафон",
+  "transformer": "трансформатор", "fuel line": "паливний шланг", "duct tape": "скотч (клейка стрічка)",
+  "VIP pass": "VIP-перепустка", "poncho": "пончо", "cocoa": "какао", "fireworks": "феєрверк",
+  "confetti": "конфеті", "couch": "диван",
+
+  // Actions & Events
+  "festival": "фестиваль", "trip": "подорож / поїздка", "music": "музика", "love": "кохання",
+  "mood": "настрій", "warm-up": "розминка / розігрів", "view": "краєвид", "karma": "карма",
+  "lesson": "урок", "crash": "аварія", "solo": "соло", "break": "перерва", "warning": "попередження",
+  "damage": "пошкодження", "detour": "об'їзд", "assistance": "допомога", "rumble": "гуркіт",
+  "earthquake": "землетрус", "repair": "ремонт", "blackout": "відключення світла",
+  "power cut": "відключення електроенергії", "groan": "стогін", "encore": "на біс", "chorus": "приспів",
+
+  // Phrasal Verbs
+  "look after": "піклуватися про", "wake up": "прокидатися", "put off": "відкладати",
+  "carry on": "продовжувати", "give up": "здаватися/припиняти", "come up with": "вигадати/знайти (ідею)",
+  "use up": "використати повністю", "close down": "закрити (припинити роботу)", "pack": "пакувати",
+  "check": "перевіряти", "throw": "кидати", "jump": "стрибати", "head for": "прямувати до",
+  "start": "починати", "take off": "злітати / починатися (про музику)", "sing along": "підспівувати",
+  "slow down": "сповільнювати(ся)", "step onto": "ступати на", "brake": "гальмувати",
+  "wave": "махати", "honk": "сигналити (авто)", "spin": "крутитися", "slip": "вислизати",
+  "stop": "зупиняти(ся)", "apologise": "вибачатися", "roll over": "перекочуватися / накривати",
+  "skid": "ковзати (на дорозі)", "control": "контролювати", "gasp": "задихатися / ахати",
+  "yell": "кричати / верещати", "race": "мчати / гнатися", "promise": "обіцяти",
+  "growl": "бурчати (про живіт)", "pick up": "підбирати", "rattle": "стукотіти / торохтіти",
+  "gather": "збиратися (про хмари)", "pull off": "з'їжджати (з дороги)", "block": "блокувати",
+  "flash": "блимати / спалахувати", "sink": "тонути / грузнути", "dig out": "викопувати",
+  "climb": "лазити / підніматися", "pick up (signal)": "зловити (сигнал)", "slide down": "з'їжджати вниз",
+  "hug": "обіймати", "shake": "трясти(ся)", "power up": "вмикати живлення / запускати",
+  "sprint": "бігти спринт / мчати", "fall": "падати", "sway": "гойдатися",
+  "wave (cars)": "махати (машинам)", "creep": "повзти", "count": "рахувати",
+  "make it": "впоратися / дістатися", "cheer": "вітати / підбадьорювати", "glow": "світитися",
+  "rise": "підніматися", "volunteer": "зголоситися добровольцем", "hand out": "роздавати",
+  "carry": "нести", "miss": "пропускати / сумувати", "build up": "накопичуватися", "run": "бігти",
+  "check (tickets)": "перевіряти (квитки)", "crawl": "повзти", "boom": "гуркотіти", "hit": "вдаряти",
+  "jump": "стрибати", "cut off": "відключати / обривати", "die": "гаснути / вмирати",
+  "sputter": "пихтіти / хрипіти (про двигун)", "figure out": "з'ясувати / розібратися",
+  "tighten": "затягувати", "roar": "ревіти", "blaze": "палати", "save": "рятувати / зберігати",
+  "appear": "з'являтися", "invite": "запрошувати",
+
+  // Misc Grammar Words
+  "bigger": "більший", "smaller": "менший", "hotter": "гарячіший", "colder": "холодніший",
+  "more dangerous": "небезпечніший", "safest": "найбезпечніший", "longer": "довший",
+  "more beautiful": "красивіший", "kinder": "добріший", "faster": "швидший", "slower": "повільніший",
+  "darker": "темніший", "steeper": "крутіший", "quieter": "тихіший", "brighter": "яскравіший",
+  "warmer": "тепліший", "softer": "м'якший", "lower": "нижчий", "heavier": "важчий",
+  "closer": "ближчий", "wider": "ширший", "greater": "величніший / кращий",
+  "grey": "сірий", "green": "зелений", "old": "старий", "biggest": "найбільший",
+  "possible": "можливий", "hazardous": "небезпечний", "excited": "схвильований / збуджений",
+  "awesome": "крутий / дивовижний", "foggy": "туманний", "sunny": "сонячний", "scenic": "мальовничий",
+  "bright": "яскравий", "gentle": "ніжний / лагідний", "impatient": "нетерплячий", "kind": "добрий / люб'язний",
+  "thick": "густий / товстий", "icy": "крижаний / слизький", "long": "довгий", "metal": "металевий",
+  "ghostly": "примарний", "safe": "безпечний", "lucky": "щасливий / вдалий", "coolest": "найкрутіший",
+  "tiny": "крихітний", "warm": "теплий", "odd": "дивний", "sweet": "солодкий", "dark": "темний",
+  "black": "чорний", "marble-size": "розміром з мармурову кульку", "worst": "найгірший",
+  "stone": "кам'яний", "fast": "швидкий", "white": "білий", "spring": "весна", "winter": "зима",
+  "good": "добрий / гарний", "bad": "поганий", "small": "маленький", "closed": "зачинений",
+  "main": "головний", "flashing": "миготливий", "narrow": "вузький", "soft": "м'який",
+  "stuck": "застряглий", "dry": "сухий", "flat": "рівний / плаский", "fancy": "шикарний / вишуканий",
+  "awake": "той, що не спить", "farther": "далі", "stiff": "задерев'янілий", "hopeful": "сповнений надії",
+  "spare": "запасний", "empty": "порожній", "official": "офіційний", "unmarked": "непозначений",
+  "nearby": "поблизу", "heavy": "важкий", "free": "вільний", "three hours": "три години",
+  "wooden": "дерев'яний", "steel": "сталевий", "two football fields": "два футбольні поля",
+  "damaged": "пошкоджений", "patiently": "терпляче", "twice": "двічі", "halfway": "на півдорозі",
+  "loud": "гучний", "huge": "величезний", "neon": "неоновий", "sleepy": "сонний",
+  "steaming": "паруюче", "backup": "резервний", "loose": "ослаблений", "five minutes": "п'ять хвилин",
+  "last": "останній", "off-key": "фальшиво", "perfect": "ідеальний", "happy": "щасливий",
+
+  // Basic Function Words
+  "a": "неозначений артикль", "the": "означений артикль", "is": "є (одн.)", "are": "є (мн.)",
+  "was": "був/була/було", "were": "були", "and": "і / та", "or": "або / чи", "but": "але",
+  "on": "на", "in": "в / у", "at": "біля / в / на", "of": "родовий відмінок", "for": "для",
+  "with": "з", "to": "до / в", "from": "з / від", "ahead": "попереду", "onto": "на (рух)",
+  "under": "під", "than": "ніж", "like": "як / схожий на", "how": "як", "what": "що", "when": "коли",
+  "where": "де / куди", "why": "чому", "if": "якщо", "maybe": "можливо", "suddenly": "раптом",
+  "anyway": "все одно / у будь-якому випадку", "luckily": "на щастя", "already": "вже", "still": "все ще",
+  "just": "просто / щойно", "ever": "коли-небудь", "never": "ніколи", "ago": "тому", "later": "пізніше",
+  "first": "спочатку / перший", "now": "зараз", "then": "тоді / потім", "only": "тільки / лише",
+  "almost": "майже", "even": "навіть", "also": "також", "too": "теж / занадто", "very": "дуже",
+  "really": "справді / дійсно", "together": "разом", "around": "навколо / близько", "behind": "позаду",
+  "across": "через / поперек", "through": "крізь / через", "towards": "у напрямку до", "above": "над",
+  "near": "біля", "next": "наступний", "finally": "нарешті", "politely": "ввічливо",
+  "straight": "прямо", "quickly": "швидко", "slowly": "повільно", "loudly": "голосно",
+  "gently": "ніжно / обережно", "yes": "так", "no": "ні", "✓": "✓ (так / виконано)"
+};
+
+
+
+
+// --- DOM Elements ---
+const sceneTextEl = document.getElementById('scene-text');
+const choicesContainerEl = document.getElementById('choices-container');
+const outcomeDisplayEl = document.getElementById('outcome-display');
+const voiceButton = document.getElementById('voice-button');
+const voiceStatusEl = document.getElementById('voice-status');
+const startChallengeBtn = document.getElementById('start-challenge-btn'); // Renamed
+const vocabListContainer = document.getElementById('vocab-list-container');
+
+// --- Game State ---
+let currentSceneId = 'start';
+let currentChoices = []; // Holds the {text, nextScene} objects for the current scene
+let isMemoryCheckPhase = false; // Is the player currently supposed to recall the English text?
+let isChoiceSpeakingPhase = false; // Is the player supposed to speak their choice?
+let originalEnglishTextForMemoryCheck = ""; // Stores formatted EN text for recall comparison/display
+let formattedUkrainianTextForMemoryCheck = "";// Stores formatted UA text to show during recall
+let memoryCheckPassed = false; // Did the player succeed in the last memory check?
+let ttsUnlocked = false; // Has the user interaction unlocked text-to-speech?
+let micPermissionGranted = null; // null: unknown, true: granted, false: denied
+let isListening = false; // Is the speech recognition actively listening?
+
+const MEMORY_SIMILARITY_THRESHOLD = 0.50; // Required similarity (0-1) for memory check
+
+// --- Text-to-Speech (TTS) Setup ---
+const synth = window.speechSynthesis;
+let currentUtterance = null;
+let selectedVoice = null; // Holds the chosen English voice object
+let voicesLoaded = false;
+
+if (synth && typeof synth.onvoiceschanged !== 'undefined') {
+    synth.onvoiceschanged = () => {
+        voicesLoaded = true;
+        console.log("[Init] System voices loaded/changed:", synth.getVoices().length);
+         // Re-select best voice if they change after initial load
+         if (ttsUnlocked) { // Only if game has started/audio enabled
+            selectedVoice = getBestVoice();
+            console.log("[TTS] Voices changed, re-selected voice:", selectedVoice ? selectedVoice.name : "default");
+         }
+    };
+}
+if (synth && synth.getVoices().length === 0) {
+    synth.getVoices(); // Try to preload
+}
+
+
+// --- Speech Recognition Setup ---
+const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let recognition = null; // Holds the SpeechRecognition instance
+
+
+// --- Helper Functions ---
+
+// ----------  SENTENCE   WRAPPING  +  TRANSLATION  TOOLTIP  ----------------
+/**
+ * Wraps every English sentence in a span that keeps both EN + UA versions.
+ * If a UA version is missing it will be filled on‑demand via Google‑Translate.
+ */
+
+ /* =========================================================================
+   ❶  Make ALL English text nodes translatable
+   ------------------------------------------------------------------------ */
+ function makeTextNodesTranslatable(rootEl){
+    if(!rootEl) return;
+
+    const walker = document.createTreeWalker(
+        rootEl,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode(node){
+                // skip empty / whitespace
+                if(!node.nodeValue || /^\s*$/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+                // only English letters?
+                if(!/[A-Za-z]/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+                // already wrapped?
+                if(node.parentNode && node.parentNode.classList &&
+                   node.parentNode.classList.contains('translatable-sentence')){
+                    return NodeFilter.FILTER_REJECT;
+                }
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        },
+        false
+    );
+
+    const toWrap=[];
+    while(walker.nextNode()) toWrap.push(walker.currentNode);
+
+    toWrap.forEach(node=>{
+        const span = document.createElement('span');
+        span.className = 'translatable-sentence';
+        span.dataset.en = node.nodeValue.trim();
+        span.textContent = node.nodeValue;
+        node.parentNode.replaceChild(span,node);
+    });
+}
+
+/* =========================================================================
+   WRAP COMPLETE ENGLISH SENTENCES  (works even with <span> keywords inside)
+   ------------------------------------------------------------------------ */
+   function wrapSentencesWithTranslation(rawEn, uaText){
+    // ①  split the *plain* English into sentences
+    const plainSentences = rawEn
+        .match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
+
+    // ②  insert unique tokens – later we can find them after keyword‑highlighting
+    let tokenised = rawEn;
+    const tokens = [];                 // [{tok:'%%TX0%%', en:'...', ua:'...'}]
+    plainSentences.forEach((s,i)=>{
+        const tok = `%%TX${i}%%`;
+        tokens.push({tok, en:s.trim(), ua:(uaText.match(/[^.!?]+[.!?]+|[^.!?]+$/g)||[])[i]||''});
+        tokenised = tokenised.replace(s, tok);   // first occurrence only
+    });
+
+    // ③  run your existing highlight code *after* tokenisation
+    tokenised = formatText(tokenised);
+
+    // ④  swap tokens for <span class="translatable-sentence"> … </span>
+    tokens.forEach(({tok,en,ua})=>{
+        // find the highlighted version of this sentence (may contain keyword spans now)
+        const regexTok = new RegExp(tok.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+        tokenised = tokenised.replace(
+            regexTok,
+            `<span class="translatable-sentence" data-en="${en.replace(/"/g,'&quot;')}" data-ua="${ua.replace(/"/g,'&quot;')}">${formatText(en)}</span>`
+        );
+    });
+
+    return tokenised;
+}
+
+
+/** Removes HTML tags */
+function stripHtml(htmlString) {
+    if (!htmlString) return "";
+    const tmp = document.createElement("DIV");
+    tmp.innerHTML = htmlString;
+    return tmp.textContent || tmp.innerText || "";
+}
+
+/** Formats text: highlights vocab & location */
+function formatText(text) {
+    if (!text) return "";
+    let formattedText = String(text);
+    formattedText = formattedText.replace(/\[Location: (.*?)\]/g, '<span class="location-text">Location: $1</span>');
+    const sortedVocab = [...vocabulary].sort((a, b) => b.length - a.length);
+    sortedVocab.forEach(word => {
+        try {
+            const escapedWord = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            // Regex to match whole words, avoiding matches inside HTML tags or already highlighted spans
+            const regex = new RegExp(`(?<!<[^>]*?)(?<!<(?:span|div|p)\\s[^>]*>)(?<!<span class="[^"]*">)(\\b${escapedWord}\\b)(?![^<]*?>)(?![^<]*<\\/(?:span|div|p)>)`, 'gi');
+             formattedText = formattedText.replace(regex, (match) => {
+                 // Basic check to avoid re-wrapping common tags if regex fails
+                 if (match.toLowerCase().includes('<span class') || match.toLowerCase().includes('<div') ) return match;
+                 return `<span class="keyword-highlight">${match}</span>`;
+            });
+        } catch (e) { console.error(`[FormatText] Regex error for word "${word}":`, e); }
+    });
+    return formattedText;
+}
+
+/** Updates the vocabulary list based on current scene text */
+function updateVocabList(currentText) {
+    if (!vocabListContainer) return;
+    vocabListContainer.innerHTML = '';
+    const plainTextLower = currentText.toLowerCase();
+    const foundWords = new Set();
+
+    vocabulary.forEach(word => {
+        try {
+            const escapedWord = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            const regex = new RegExp(`\\b${escapedWord}\\b`, 'i');
+            if (regex.test(plainTextLower)) {
+                foundWords.add(word);
+            }
+        } catch (e) { console.error(`[VocabList] Regex error checking word "${word}":`, e); }
+    });
+
+    if (foundWords.size > 0) {
+        const ul = document.createElement('ul');
+        const sortedFoundWords = Array.from(foundWords).sort();
+        sortedFoundWords.forEach(enWord => {
+            const uaWord = vocabTranslations[enWord] || '[Translation N/A]';
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="ua-term">${uaWord}</span> - ${enWord}`;
+            ul.appendChild(li);
+        });
+        vocabListContainer.appendChild(ul);
+        // Visibility controlled by game state functions now
+    } else {
+        // Ensure it's hidden if no words found
+         vocabListContainer.classList.add('hidden');
+    }
+}
+
+/** Calculates Levenshtein distance */
+function levenshteinDistance(a = "", b = "") {
+    // (Implementation remains the same as original)
+      const strA = String(a).toLowerCase();
+      const strB = String(b).toLowerCase();
+      if (strA.length === 0) return strB.length;
+      if (strB.length === 0) return strA.length;
+      const matrix = Array(strB.length + 1).fill(null).map(() => Array(strA.length + 1).fill(null));
+      for (let i = 0; i <= strA.length; i++) matrix[0][i] = i;
+      for (let j = 0; j <= strB.length; j++) matrix[j][0] = j;
+      for (let j = 1; j <= strB.length; j++) {
+          for (let i = 1; i <= strA.length; i++) {
+              const cost = strA[i - 1] === strB[j - 1] ? 0 : 1;
+              matrix[j][i] = Math.min(
+                  matrix[j][i - 1] + 1,     // Deletion
+                  matrix[j - 1][i] + 1,     // Insertion
+                  matrix[j - 1][i - 1] + cost // Substitution
+              );
+          }
+      }
+      return matrix[strB.length][strA.length];
+}
+
+/** Calculates similarity score (0-1) */
+function calculateSimilarity(text1, text2) {
+    const distance = levenshteinDistance(text1, text2);
+    const len1 = String(text1).length;
+    const len2 = String(text2).length;
+    const maxLength = Math.max(len1, len2);
+    if (maxLength === 0) return 1;
+    const similarity = 1 - (distance / maxLength);
+    return Math.max(0, similarity);
+}
+
+/** Displays English text after memory check, highlighting matched words */
+function displayAndHighlightMemoryCheck(originalHTML, spokenTranscript) {
+     const plainOriginal = stripHtml(originalHTML).toLowerCase();
+     const originalWords = plainOriginal.split(/\s+/).filter(w => w.length > 0);
+     const spokenWords = spokenTranscript ? spokenTranscript.toLowerCase().split(/\s+/).filter(w => w.length > 0) : [];
+     const spokenWordSet = new Set(spokenWords);
+     let highlightedHTML = originalHTML; // Start with the formatted HTML
+     const matchedOriginalWords = new Set();
+
+     originalWords.forEach(word => {
+         const cleanWord = word.replace(/[.,!?;:]/g, '');
+         if (cleanWord && spokenWordSet.has(cleanWord)) {
+             matchedOriginalWords.add(cleanWord);
+         }
+     });
+      console.log("[Highlight] Matched words found:", Array.from(matchedOriginalWords));
+
+     // Apply memory-match class to matched words in the original *formatted* HTML
+     matchedOriginalWords.forEach(word => {
+         if (!word) return;
+         try {
+             const escapedWord = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+             // More specific regex to avoid matching inside tags or already wrapped spans
+             const regex = new RegExp(`(?<=>[^<]*)(\\b${escapedWord}\\b)(?=[^<]*<)|(?<!=["'\\/])(\\b${escapedWord}\\b)(?!["'\\/])`, 'gi');
+
+             highlightedHTML = highlightedHTML.replace(regex, (match, group1, group2) => {
+                 const actualMatch = group1 || group2; // Get the matched word
+                 // Check if the match is already inside a span (basic check)
+                 // This is tricky - aiming to not double-wrap
+                  const surroundingChars = highlightedHTML.substring(
+                      Math.max(0, highlightedHTML.indexOf(actualMatch) - 10),
+                      highlightedHTML.indexOf(actualMatch) + actualMatch.length + 10
+                 );
+                 if (surroundingChars.includes('<span class="memory-match">') || surroundingChars.includes('<span class="keyword-highlight">')) {
+                     return actualMatch; // Avoid re-wrapping if it looks like it's already wrapped
+                 }
+                 return `<span class="memory-match">${actualMatch}</span>`;
+             });
+         } catch (e) { console.error(`[Highlight] Regex error for word "${word}":`, e); }
+     });
+
+     sceneTextEl.innerHTML = highlightedHTML; // Display the result with highlights
+   
+     sceneTextEl.classList.remove('memory-recall-active');
+}
+
+
+// --- UI Element State Management ---
+
+/** Updates voice button text and style based on game state */
+function updateVoiceButtonUI() {
+    if (!voiceButton) return;
+    voiceButton.classList.remove('listening', 'bg-accent', 'hover:bg-accent-dark', 'bg-info');
+
+    if (isListening) {
+        voiceButton.classList.add('listening', 'bg-info');
+        if (isMemoryCheckPhase) {
+            voiceButton.textContent = 'Listening for Recall... 👂';
+        } else if (isChoiceSpeakingPhase) {
+            voiceButton.textContent = 'Listening for Choice... 👂';
+        } else {
+             voiceButton.textContent = 'Listening... 👂'; // Generic fallback
+        }
+    } else {
+         // Default button state
+        voiceButton.classList.add('bg-accent', 'hover:bg-accent-dark');
+        if (isMemoryCheckPhase) {
+            voiceButton.textContent = 'Speak English Text 🎤';
+            voiceStatusEl.textContent = "Click button above to speak the English text you heard.";
+            voiceStatusEl.className = 'text-highlight';
+        } else if (isChoiceSpeakingPhase) {
+            voiceButton.textContent = 'Speak Choice 🎤';
+            voiceStatusEl.textContent = "Click button above to speak your choice.";
+             voiceStatusEl.className = 'text-info';
+        } else {
+             // Button shouldn't normally be active here unless end/error
+             voiceButton.textContent = 'Speak Action 🎤';
+        }
+    }
+
+    // Handle disabled states last
+     if (!SpeechRecognitionAPI) {
+        voiceButton.disabled = true;
+        voiceButton.textContent = 'Voice Not Supported';
+    } else if (micPermissionGranted === false) {
+        voiceButton.disabled = true;
+        voiceButton.textContent = 'Mic Disabled';
+    } else {
+         // Enable button if mic is ok AND it's relevant phase, disable otherwise
+         voiceButton.disabled = !(isMemoryCheckPhase || isChoiceSpeakingPhase);
+    }
+}
+
+/** Hides or shows the choices container */
+ function setChoicesVisibility(visible) {
+     if (visible) {
+         choicesContainerEl.classList.remove('hidden');
+         // Note: Buttons themselves remain non-interactive per CSS/JS logic change
+     } else {
+         choicesContainerEl.classList.add('hidden');
+     }
+ }
+
+/** Hides or shows the vocabulary list */
+function setVocabListVisibility(visible) {
+     if (visible) {
+         vocabListContainer.classList.remove('hidden');
+     } else {
+         vocabListContainer.classList.add('hidden');
+     }
+}
+
+// --- Text-to-Speech (TTS) Functionality ---
+
+/** Finds the best available English voice */
+function getBestVoice() {
+    const voices = synth.getVoices();
+    // Prefer enhanced/premium, then specific known good ones, then any US/GB, then any English
+    return voices.find(v => v.lang.startsWith('en') && (v.name.toLowerCase().includes('enhanced') || v.name.toLowerCase().includes('premium'))) ||
+           voices.find(v => v.lang.startsWith('en') && (v.name.toLowerCase().includes('daniel') || v.name.toLowerCase().includes('samantha'))) ||
+           voices.find(v => v.lang.toLowerCase() === 'en-gb') ||
+           voices.find(v => v.lang.toLowerCase() === 'en-us') ||
+           voices.find(v => v.lang.startsWith('en')) ||
+           null;
+}
+
+/** Speaks text using selected voice */
+function speakText(textToSpeak, lang = 'en-GB', onEndCallback = null) {
+    const availableVoices = synth.getVoices();
+    // console.log(`[TTS Debug] speakText called. Voices: ${availableVoices.length}. Loaded: ${voicesLoaded}. Unlocked: ${ttsUnlocked}`);
+
+    if (!synth || !ttsUnlocked || !textToSpeak) {
+        console.warn(`[TTS] Skipping speech (Synth: ${!!synth}, Unlocked: ${ttsUnlocked}, Text: ${!!textToSpeak})`);
+        if (onEndCallback) setTimeout(onEndCallback, 0); // Ensure callback runs even if skipped
+        return;
+    }
+
+    if (synth.speaking) {
+        console.log("[TTS] Cancelling previous utterance sequence.");
+        synth.cancel(); // Cancel any ongoing/queued speech first
+    }
+
+    const plainText = stripHtml(textToSpeak).trim();
+    if (!plainText) {
+        console.log("[TTS] No text to speak after trimming.");
+        if (onEndCallback) setTimeout(onEndCallback, 0); // Ensure callback runs even if empty
+        return;
+    }
+
+    // --- Sentence Splitting ---
+    // Match sequences ending in sentence punctuation (. ! ?) OR the final part of the string.
+    const sentences = plainText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
+    const validSentences = sentences.map(s => s.trim()).filter(s => s.length > 0);
+
+    if (validSentences.length === 0) {
+        console.log("[TTS] No valid sentences found after splitting.");
+        if (onEndCallback) setTimeout(onEndCallback, 0);
+        return;
+    }
+    // console.log(`[TTS] Split into ${validSentences.length} sentences.`);
+
+    let callbackCalled = false; // Flag to prevent multiple calls to onEndCallback
+    let fallbackTimer = null;   // Handle for the safety timeout
+
+    // --- Completion Handler ---
+    // Central function to handle cleanup and calling the final callback
+    const handleCompletion = (error = null) => {
+        if (callbackCalled) return; // Already handled
+        callbackCalled = true;
+        clearTimeout(fallbackTimer); // Clear timer
+        sceneTextEl.classList.remove('speaking'); // UI cleanup
+
+        if (error) {
+            console.error('[TTS] Utterance error during sequence:', error);
+            // Cancel any further utterances that might be queued
+            synth.cancel();
+        } else {
+            // console.log('[TTS] Sentence sequence successfully finished.');
+        }
+
+        // Call the original callback provided to speakText
+        if (onEndCallback) {
+            try {
+                onEndCallback();
+            } catch (e) {
+                console.error("[TTS] Error executing onEndCallback:", e);
+            }
+        }
+    };
+
+    // --- Create Utterances ---
+    const utterances = validSentences.map((sentence, index) => {
+        const utterance = new SpeechSynthesisUtterance(sentence);
+        utterance.lang = selectedVoice ? selectedVoice.lang : lang;
+        utterance.voice = selectedVoice;
+
+        // General error handler for any utterance in the sequence
+        utterance.onerror = (event) => {
+            handleCompletion(`Error on sentence ${index + 1}: ${event.error}`);
+        };
+
+        // The *last* utterance's onend triggers the final successful completion
+        if (index === validSentences.length - 1) {
+            utterance.onend = () => {
+                handleCompletion(); // Success path
+            };
+        } else {
+            // Optional: Log when intermediate sentences finish
+            utterance.onend = () => {
+                // console.log(`[TTS] Sentence ${index + 1} of ${validSentences.length} ended.`);
+            };
+        }
+
+        // The *first* utterance's onstart visually indicates speaking has begun
+        if (index === 0) {
+            utterance.onstart = () => {
+                // console.log('[TTS] Sentence sequence started.');
+                sceneTextEl.classList.add('speaking');
+            };
+        }
+
+        return utterance;
+    });
+
+    // --- Safety Timeout (for the whole sequence) ---
+    const totalChars = plainText.length;
+    // Estimate: time per char + overhead per sentence + buffer
+    const estimatedDurationMs = (totalChars / 12) * 1000 + (validSentences.length * 1200) + 6000; // Adjusted estimation
+    // Ensure a minimum reasonable time per sentence
+    const minDuration = Math.max(5000 * validSentences.length, 10000); // e.g. 5s/sentence, min 10s total
+    const maxDurationMs = Math.max(estimatedDurationMs, minDuration);
+    // console.log(`[TTS] Setting fallback timer for sequence: ${maxDurationMs}ms`);
+
+    fallbackTimer = setTimeout(() => {
+        if (!callbackCalled) {
+            console.warn(`[TTS] Fallback timer triggered for sequence after ${maxDurationMs}ms. Speech may be stuck. Forcing callback.`);
+            handleCompletion("Fallback Timeout"); // Call completion handler with error indication
+        }
+    }, maxDurationMs);
+    // --- End Safety Timeout ---
+
+    // --- Queue all utterances for speaking ---
+    // console.log(`[TTS] Queuing ${utterances.length} utterances.`);
+    try {
+         utterances.forEach(utt => synth.speak(utt));
+    } catch (e) {
+         console.error("[TTS] Error calling synth.speak() while queuing:", e);
+         // If speaking fails immediately, trigger completion
+         handleCompletion("Speak Error during queuing");
+    }
+}
+
+// --- Speech Recognition Functionality ---
+
+/** Initializes Speech Recognition */
+function initializeSpeechRecognition() {
+     if (!SpeechRecognitionAPI) {
+         console.warn('[SpeechRec] API not supported.');
+         updateVoiceButtonUI(); // Ensure button shows unsupported state
+         return;
+     }
+     if (recognition) {
+         console.log("[SpeechRec] Already initialized.");
+         return; // Avoid re-initializing
+     }
+
+    try {
+        recognition = new SpeechRecognitionAPI();
+        recognition.continuous = true; // Process single utterance
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+            isListening = true;
+            updateVoiceButtonUI();
+            console.log('[SpeechRec] Event: onstart');
+        };
+
+        recognition.onresult = (event) => {
+            console.log('[SpeechRec] Event: onresult');
+            let transcript = "";
+            if (event.results && event.results[0] && event.results[0][0]) {
+                transcript = event.results[0][0].transcript.trim();
+            } else {
+                 console.warn("[SpeechRec] onresult: Received empty/malformed results.");
+            }
+            console.log(`[SpeechRec] Recognized: "${transcript}"`);
+
+             // Stop listening once we have a result
+             if (recognition && isListening) {
+                 try { recognition.stop(); } catch(e) { console.warn("Error stopping recognition after result:", e); }
+             }
+
+            if (isMemoryCheckPhase) {
+                processMemoryCheckResult(transcript);
+            } else if (isChoiceSpeakingPhase) {
+                processChoiceSpeechResult(transcript);
+            } else {
+                 console.warn("[SpeechRec] Received result in unexpected phase.");
+            }
+        };
+
+        recognition.onerror = (event) => {
+            console.error('[SpeechRec] Event: onerror - Error:', event.error, 'Message:', event.message);
+            let errorMessage = 'Speech recognition error';
+            switch (event.error) {
+                case 'no-speech': errorMessage = 'No speech detected.'; break;
+                case 'audio-capture': errorMessage = 'Mic error. Check connection/permissions.'; break;
+                case 'not-allowed': errorMessage = 'Mic access denied.'; micPermissionGranted = false; break; // Update state
+                case 'network': errorMessage = 'Network error.'; break;
+                case 'aborted': errorMessage = 'Speech input stopped.'; break; // Less alarming
+                 case 'service-not-allowed': errorMessage = 'Speech service denied.'; break;
+                default: errorMessage = `Error: ${event.error || 'Unknown'}`;
+            }
+            if (event.error !== 'aborted') { // Don't show status for manual aborts if possible
+                voiceStatusEl.textContent = `Error: ${errorMessage}`;
+                voiceStatusEl.className = 'text-danger';
+            }
+            // Let onend handle final UI state reset
+        };
+
+        recognition.onend = () => {
+            console.log('[SpeechRec] Event: onend');
+            isListening = false;
+            updateVoiceButtonUI(); // Reset button state after listening stops
+        };
+
+         console.log("[SpeechRec] Initialization complete.");
+
+    } catch (e) {
+        console.error("[SpeechRec] Error creating SpeechRecognition object:", e);
+        recognition = null; // Ensure it's null if creation failed
+        updateVoiceButtonUI(); // Update button to show error/unsupported
+    }
+}
+// --- End of Chunk 1 ---
+// --- Start of Chunk 2 ---
+// (Continuing script from Chunk 1)
+
+/** Processes speech result during memory check */
+function processMemoryCheckResult(transcript) {
+    console.log('[MemoryCheck] Processing transcript:', `"${transcript}"`);
+    const feedbackArea = document.getElementById('feedback-percentage-area'); // Get the new feedback element
+
+    // Clear any previous feedback first
+    if (feedbackArea) {
+        feedbackArea.textContent = '';
+        // Reset classes, removing color helpers like text-success or text-highlight
+        feedbackArea.className = 'text-center font-semibold mt-2 min-h-[1.2em]';
+    }
+
+    if (!originalEnglishTextForMemoryCheck) {
+        console.error("[MemoryCheck] ERROR: Original English text missing!");
+        voiceStatusEl.textContent = "Error: Cannot perform memory check."; // Use main status for errors
+        voiceStatusEl.className = 'text-danger';
+        if (feedbackArea) feedbackArea.textContent = 'Error checking recall.'; // Also show error in feedback
+        isMemoryCheckPhase = false;
+        memoryCheckPassed = false;
+        updateVoiceButtonUI();
+        return;
+    }
+
+    const plainOriginal = stripHtml(originalEnglishTextForMemoryCheck).toLowerCase();
+    const plainTranscript = transcript ? transcript.toLowerCase() : "";
+    const similarity = calculateSimilarity(plainOriginal, plainTranscript);
+    const similarityPercent = (similarity * 100).toFixed(0);
+    const feedbackDisplayDuration = 3000; // Keep feedback visible for 3 seconds
+
+    console.log(`[MemoryCheck] Similarity: ${similarity.toFixed(3)} (${similarityPercent}%)`);
+
+    if (similarity >= MEMORY_SIMILARITY_THRESHOLD) {
+        console.log("[MemoryCheck] PASSED.");
+
+        // --- Display percentage in the dedicated feedback area ---
+        if (feedbackArea) {
+            feedbackArea.textContent = `Recall Success: ${similarityPercent}%`;
+            feedbackArea.classList.add('text-success'); // Apply success color
+        }
+
+        // --- Set NEXT INSTRUCTION in the main voiceStatusEl ---
+        voiceStatusEl.textContent = `Choices below. Click button to speak choice.`;
+        voiceStatusEl.className = 'text-info'; // Use neutral color for instruction
+
+        // --- Perform immediate state updates and UI changes for pass ---
+        memoryCheckPassed = true;
+        isMemoryCheckPhase = false;
+        isChoiceSpeakingPhase = true;
+        displayAndHighlightMemoryCheck(originalEnglishTextForMemoryCheck, plainTranscript);
+        setVocabListVisibility(true);
+        setChoicesVisibility(true);
+        updateVoiceButtonUI(); // Update button for choice speaking phase
+
+        // --- Schedule clearing of the dedicated feedback area ---
+        if (feedbackArea) {
+            setTimeout(() => {
+                feedbackArea.textContent = ''; // Clear the text
+                feedbackArea.className = 'text-center font-semibold mt-2 min-h-[1.2em]'; // Reset class
+            }, feedbackDisplayDuration);
+        }
+
+    } else {
+        console.log("[MemoryCheck] FAILED.");
+
+        // --- Display percentage in the dedicated feedback area ---
+        if (feedbackArea) {
+            feedbackArea.textContent = `Recall Failed: ${similarityPercent}%`;
+            feedbackArea.classList.add('text-highlight'); // Apply retry/fail color
+        }
+
+        // --- Set NEXT INSTRUCTION in the main voiceStatusEl ---
+        voiceStatusEl.textContent = `Click button to try recall again.`;
+        voiceStatusEl.className = 'text-highlight'; // Match feedback color for retry instruction
+
+        // --- Perform immediate state updates and UI changes for fail ---
+        memoryCheckPassed = false;
+        isMemoryCheckPhase = true; // Stay in memory phase
+        isChoiceSpeakingPhase = false;
+        sceneTextEl.innerHTML = originalEnglishTextForMemoryCheck; // Show original text again
+        sceneTextEl.classList.remove('memory-recall-active');
+        setVocabListVisibility(true);
+        setChoicesVisibility(false); // Keep choices hidden
+        updateVoiceButtonUI(); // Keep button active for memory check retry
+
+        // --- Schedule clearing of the dedicated feedback area ---
+        if (feedbackArea) {
+            setTimeout(() => {
+                feedbackArea.textContent = ''; // Clear the text
+                feedbackArea.className = 'text-center font-semibold mt-2 min-h-[1.2em]'; // Reset class
+            }, feedbackDisplayDuration);
+        }
+    }
+}
+
+/** Processes speech result during choice selection phase */
+function processChoiceSpeechResult(transcript) {
+     console.log("[ChoiceSpeak] Processing transcript:", `"${transcript}"`);
+     if (!isChoiceSpeakingPhase) {
+         console.warn("[ChoiceSpeak] Received result outside of choice speaking phase. Ignoring.");
+         return;
+     }
+     if (!currentChoices || currentChoices.length === 0) {
+         console.warn("[ChoiceSpeak] No current choices available to match against.");
+         voiceStatusEl.textContent = "No choices available.";
+         voiceStatusEl.className = 'text-highlight';
+         return;
+     }
+
+    const bestMatch = findBestMatchChoice(transcript, currentChoices);
+
+    if (bestMatch) {
+        console.log(`[ChoiceSpeak] Best match found: "${stripHtml(bestMatch.choiceData.text)}"`);
+        voiceStatusEl.textContent = `Choosing: "${stripHtml(bestMatch.choiceData.text)}"...`;
+        voiceStatusEl.className = 'text-info';
+
+        // Transition out of choice speaking phase *before* handling choice
+        isChoiceSpeakingPhase = false;
+        updateVoiceButtonUI(); // Disable button during transition
+
+        setTimeout(() => {
+             console.log("[ChoiceSpeak] Executing handleChoice after delay.");
+            handleChoice(bestMatch.choiceData);
+        }, 800); // Short delay for user feedback
+
+    } else {
+        console.log("[ChoiceSpeak] No suitable choice match found.");
+        voiceStatusEl.textContent = `No clear match for "${transcript}". Click button to try speaking again.`;
+        voiceStatusEl.className = 'text-highlight';
+         // Remain in choice speaking phase for retry
+         isChoiceSpeakingPhase = true;
+         updateVoiceButtonUI(); // Keep button enabled for retry
+    }
+}
+
+/** Helper to find the best choice match for spoken text */
+function findBestMatchChoice(transcript, choices) {
+    if (!transcript || !choices || choices.length === 0) return null;
+    let bestMatch = null;
+    let highestSimilarity = -1;
+    const normalizedTranscript = transcript.toLowerCase().trim().replace(/[.,!?;:]/g, '');
+
+    choices.forEach((choice, index) => {
+        const plainChoiceText = stripHtml(choice.text).toLowerCase().trim().replace(/[.,!?;:]/g, '');
+        if (!plainChoiceText) return;
+
+         // Calculate similarity - potentially use a slightly lower threshold for choices
+         const similarity = calculateSimilarity(normalizedTranscript, plainChoiceText);
+         const similarityThreshold = 0.40; // May need adjustment
+
+        if (similarity >= similarityThreshold && similarity > highestSimilarity) {
+            highestSimilarity = similarity;
+            bestMatch = { choiceData: choice, index: index, similarity: similarity };
+        }
+         // --- Add Keyword Matching Boost ---
+         // Simple check if any important word from the choice is in the transcript
+         const choiceWords = plainChoiceText.split(/\s+/).filter(w => w.length > 3); // Ignore short words
+         const transcriptWords = new Set(normalizedTranscript.split(/\s+/));
+         let keywordMatch = false;
+         for (const cw of choiceWords) {
+             if (transcriptWords.has(cw)) {
+                 keywordMatch = true;
+                 break;
+             }
+         }
+         // If keywords match and similarity is decent (but maybe not highest), consider it a good candidate
+         if (keywordMatch && similarity > 0.30 && similarity > highestSimilarity * 0.8) { // Adjust boost logic as needed
+             // console.log(`[ChoiceSpeak] Keyword boost for: "${plainChoiceText}" (Sim: ${similarity.toFixed(2)})`);
+             highestSimilarity = similarity; // Update highest similarity if boosted
+             bestMatch = { choiceData: choice, index: index, similarity: similarity };
+         }
+         // --- End Keyword Matching Boost ---
+
+
+    });
+
+    if (bestMatch) {
+        console.log(`[ChoiceSpeak DEBUG] Best match: "${stripHtml(bestMatch.choiceData.text)}" (Index: ${bestMatch.index}, Sim: ${bestMatch.similarity.toFixed(2)})`);
+    } else {
+        console.log("[ChoiceSpeak DEBUG] No suitable choice match found.");
+    }
+    return bestMatch;
+}
+
+
+// --- Main Game Flow Functions ---
+
+// ----------  TOOLTIP  ----------------------------------------------------
+// ----------  TOOLTIP  +  TTS‑speaker  ------------------------------------
+// ----------  TOOLTIP  +  TTS‑speaker  ------------------------------------
+(function () {
+      const tip = document.createElement("div");
+      tip.id = "translation-tooltip";
+      document.body.appendChild(tip);
+
+      const cacheTr = Object.create(null);
+      const cacheAu = Object.create(null);
+      let hideTimer = null;
+
+      async function translateENtoUA(en) {
+        if (cacheTr[en]) return cacheTr[en];
+        const url =
+          "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=uk&dt=t&q=" +
+          encodeURIComponent(en);
+        try {
+          const data = await fetch(url).then((r) => r.json());
+          const ua = (data?.[0] || []).map((ch) => ch[0]).join(" ") || "—";
+          cacheTr[en] = ua;
+          return ua;
+        } catch (e) {
+          console.warn("[translate]", e);
+          return "—";
+        }
+      }
+
+      async function playTTS(text, lang = "en") {
+        const key = text.slice(0, 190);
+        if (cacheAu[key]) {
+          cacheAu[key].currentTime = 0;
+          cacheAu[key].play();
+          return;
+        }
+        const url =
+          "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=" +
+          lang +
+          "&q=" +
+          encodeURIComponent(key);
+        try {
+          const blob = await fetch(url).then((r) => r.blob());
+          const audio = new Audio(URL.createObjectURL(blob));
+          cacheAu[key] = audio;
+          await audio.play();
+        } catch (e) {
+          if ("speechSynthesis" in window) {
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = lang;
+            speechSynthesis.speak(u);
+          }
+        }
+      }
+
+      function positionAbove(target) {
+        const r = target.getBoundingClientRect();
+        tip.style.display = "block";
+        tip.style.opacity = "0";
+        tip.style.left = "0";
+        tip.style.top = "0";
+        tip.offsetHeight; // force paint to get tooltip size
+        const top = Math.max(4, r.top - tip.offsetHeight - 6);
+        const left = Math.max(
+          4,
+          Math.min(
+            r.left + r.width / 2 - tip.offsetWidth / 2,
+            window.innerWidth - tip.offsetWidth - 4
+          )
+        );
+        tip.style.top = `${top}px`;
+        tip.style.left = `${left}px`;
+        tip.style.opacity = "1";
+      }
+
+      function showTip({ ua, en, target }) {
+        clearTimeout(hideTimer);
+        tip.innerHTML = `<span>${ua}</span> <span id="speak-btn" style="cursor:pointer;margin-left:.5rem;">🔊</span>`;
+        tip.dataset.en = en;
+        positionAbove(target);
+      }
+
+      function scheduleHide(ms = 200) {
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => (tip.style.display = "none"), ms);
+      }
+
+      /* Tooltip self‑events */
+      tip.addEventListener("mouseenter", () => clearTimeout(hideTimer));
+      tip.addEventListener("mouseleave", () => scheduleHide());
+      tip.addEventListener("click", (e) => {
+        if (e.target.id === "speak-btn") playTTS(tip.dataset.en);
+      });
+      // — Mobile tap on speaker icon —
+      tip.addEventListener(
+        "touchend",
+        (e) => {
+          if (e.target.id === "speak-btn") {
+            e.preventDefault();
+            e.stopPropagation();
+            clearTimeout(hideTimer);
+            playTTS(tip.dataset.en);
+          }
+        },
+        { passive: false }
+      );
+
+      /* Main hover logic  – use mouseenter/mouseleave (non‑bubbling) */
+      document.addEventListener(
+        "mouseenter",
+        async (ev) => {
+          const el = ev.target.closest(".translatable-sentence");
+          if (!el) return;
+          const en = el.dataset.en;
+          const ua = el.dataset.ua || (el.dataset.ua = await translateENtoUA(en));
+          showTip({ ua, en, target: el });
+        },
+        true // capture phase to catch events before they hit children
+      );
+
+      document.addEventListener(
+        "mouseleave",
+        (ev) => {
+          if (ev.target.closest(".translatable-sentence")) scheduleHide();
+        },
+        true
+      );
+
+      /* Mobile tap */
+      document.addEventListener(
+        "touchstart",
+        async (e) => {
+          const el = e.target.closest(".translatable-sentence");
+          if (!el) {
+            tip.style.display = "none";
+            return;
+          }
+          const en = el.dataset.en;
+          const ua = el.dataset.ua || (el.dataset.ua = await translateENtoUA(en));
+          showTip({ ua, en, target: el });
+          scheduleHide(2500);
+        },
+        { passive: true }
+      );
+    })();
+
+
+
+/** Displays the specified scene and prepares interactions */
+function displayScene(sceneId) {
+    console.log(`[Game Flow] Displaying scene: ${sceneId}`);
+    const sceneData = gameData[sceneId];
+
+    // Reset state variables for the new scene
+    currentChoices = [];
+    isMemoryCheckPhase = false;
+    isChoiceSpeakingPhase = false;
+    memoryCheckPassed = false;
+    originalEnglishTextForMemoryCheck = "";
+    formattedUkrainianTextForMemoryCheck = "";
+
+    // Stop any ongoing interactions
+    if (synth?.speaking) synth.cancel();
+    if (recognition && isListening) {
+        try { recognition.abort(); } catch (e) {}
+        isListening = false;
+    }
+    sceneTextEl.classList.remove('speaking', 'memory-recall-active');
+
+    if (!sceneData) {
+        console.error(`[Game Flow] Invalid sceneId: ${sceneId}.`);
+        sceneTextEl.innerHTML = formatText("Error: Scene data not found. Please restart.");
+        choicesContainerEl.innerHTML = '';
+        setChoicesVisibility(false);
+        setVocabListVisibility(false);
+        outcomeDisplayEl.innerHTML = '<div class="game-over">ERROR</div>';
+        addRestartButton();
+        updateVoiceButtonUI();
+        return;
+    }
+
+    // Process Scene Text (EN and UA)
+    const englishText = (typeof sceneData.text === 'object' && sceneData.text.en) ? sceneData.text.en : sceneData.text;
+    const ukrainianText = (typeof sceneData.text === 'object' && sceneData.text.ua) ? sceneData.text.ua : null;
+    let sceneDisplayText = englishText || `Scene "${sceneId}" has no English text.`;
+    let outcomeMessage = '';
+    const gameOverMatch = sceneDisplayText.match(/<span class='game-over'>(.*?)<\/span>/i);
+    const gameSuccessMatch = sceneDisplayText.match(/<span class='game-success'>(.*?)<\/span>/i);
+    const isEndScene = !!(gameOverMatch || gameSuccessMatch);
+
+    if (gameOverMatch) {
+        outcomeMessage = `<div class="game-over">${gameOverMatch[1]}</div>`;
+        sceneDisplayText = sceneDisplayText.replace(gameOverMatch[0], '').trim();
+    } else if (gameSuccessMatch) {
+        outcomeMessage = `<div class="game-success">${gameSuccessMatch[1]}</div>`;
+        sceneDisplayText = sceneDisplayText.replace(gameSuccessMatch[0], '').trim();
+    }
+
+    // ---- create EN sentence wrappers *before* saving for later ----------------
+    originalEnglishTextForMemoryCheck = wrapSentencesWithTranslation(
+            sceneDisplayText,          // raw EN
+            ukrainianText || ''        // provided UA (may be empty)
+    );
+    // ---------------------------------------------------------------------------
+
+    if (ukrainianText){
+        formattedUkrainianTextForMemoryCheck = formatText(ukrainianText);
+    }
+
+    const plainEnglishText = stripHtml(originalEnglishTextForMemoryCheck);
+
+    // Initial UI Update
+    sceneTextEl.innerHTML = originalEnglishTextForMemoryCheck;
+    outcomeDisplayEl.innerHTML = outcomeMessage;
+    voiceStatusEl.textContent = '';
+    voiceStatusEl.className = 'text-info';
+    choicesContainerEl.innerHTML = ''; // Clear before preparing
+
+    updateVocabList(plainEnglishText);
+    setVocabListVisibility(true);
+
+    // *** Prepare choice elements (container starts hidden) ***
+    // Use prepareAndDisplayChoices which now creates the elements
+    if (sceneData.choices?.length > 0) {
+        prepareAndDisplayChoices(sceneData);
+    } else if (isEndScene) {
+        addRestartButton(); // Ensures restart button is added if no choices defined
+    }
+    // Ensure choices container starts hidden for the new scene
+    setChoicesVisibility(false);
+
+    updateVoiceButtonUI(); // Set initial button state
+
+    // --- Speak English Text & Setup Next Interaction Phase ---
+    console.log("[Game Flow] Calling speakText for the scene.");
+    speakText(plainEnglishText, 'en-GB', () => {
+        console.log("[Game Flow] speakText callback executed.");
+        const needsMemoryCheck = !!formattedUkrainianTextForMemoryCheck && !isEndScene;
+        console.log(`[Game Flow] speakText callback: needsMemoryCheck = ${needsMemoryCheck}, isEndScene = ${isEndScene}`);
+
+        if (needsMemoryCheck) {
+            console.log("[Game Flow] Setting up Memory Check phase.");
+            isMemoryCheckPhase = true;
+            isChoiceSpeakingPhase = false;
+            memoryCheckPassed = false;
+            voiceStatusEl.textContent = "Listen carefully to the text above.";
+        } else {
+            console.log("[Game Flow] Skipping Memory Check or is End Scene.");
+            isMemoryCheckPhase = false;
+            isChoiceSpeakingPhase = !isEndScene;
+            memoryCheckPassed = true;
+
+            if (!isEndScene) {
+                console.log("[Game Flow] Setting up Choice Speaking phase (no memory check).");
+                voiceStatusEl.textContent = "Speak your desired choice.";
+                setChoicesVisibility(false); // Keep choices hidden if skipping memory check too
+            } else {
+                console.log("[Game Flow] End scene reached. No further voice action.");
+                voiceStatusEl.textContent = "Game finished.";
+                // Make sure restart button is visible if added
+                 if (document.getElementById('restart-button') || document.getElementById('dynamic-restart-button')) {
+                     setChoicesVisibility(true);
+                 }
+            }
+        }
+        updateVoiceButtonUI(); // Update button state AFTER determining phase
+    });
+}
+
+/** Populates currentChoices array but doesn't create buttons */
+function prepareAndDisplayChoices(sceneData) {
+    choicesContainerEl.innerHTML = ''; // Clear previous
+    currentChoices = []; // Reset choices array
+
+    if (sceneData.choices?.length > 0) {
+        currentChoices = sceneData.choices.map(choice => ({
+            text: choice.text,
+            nextScene: choice.nextScene
+        }));
+        console.log(`[Game Flow] Prepared ${currentChoices.length} choices for matching.`);
+
+        // Create visual elements (these will be in the container, initially hidden)
+        currentChoices.forEach(choice => {
+            const element = document.createElement('div'); // Use div instead of button for non-clickable choices
+            // Style like a button, but use 'default' cursor and maybe slightly faded
+            element.className = `block w-full p-3 mb-3 border-none bg-accent text-white text-left rounded text-base transition-colors duration-200 ease-in-out focus:outline-none opacity-90 cursor-default`; // Adjusted style
+            element.innerHTML = formatText(choice.text); // Display formatted text
+            element.innerHTML = wrapSentencesWithTranslation(
+      choice.text,   // EN
+      ''             // UA для кнопок нема
+);
+
+
+            // Special handling ONLY if a choice IS "Restart Game"
+            if (choice.text === "Restart Game") {
+                 element.remove(); // Remove the div we just made for restart
+                 const restartButton = document.createElement('button'); // Create a real button for restart
+                restartButton.id = "restart-button"; // Use specific ID if needed
+                restartButton.className = `block w-fit mx-auto p-3 mt-4 border-none bg-danger text-white cursor-pointer rounded text-base transition-colors duration-200 ease-in-out hover:bg-danger-dark focus:outline-none focus:ring-2 focus:ring-danger-dark focus:ring-opacity-50`; // Restart button styles
+                restartButton.textContent = choice.text;
+                restartButton.disabled = false; // Ensure restart is clickable
+                restartButton.onclick = () => handleChoice(choice); // Add click handler ONLY for restart
+                 choicesContainerEl.appendChild(restartButton); // Add the button
+            } else {
+                 choicesContainerEl.appendChild(element); // Add the non-clickable div
+            }
+        });
+
+    } else {
+        console.warn("[Game Flow] prepareAndDisplayChoices called, but sceneData has no choices.");
+    }
+     // Ensure container itself starts hidden (visibility controlled elsewhere)
+     setChoicesVisibility(false);
+}
+
+
+/** Adds a visible Restart Game button */
+function addRestartButton() {
+     // Check if a restart button from gameData choices already exists
+     let existingRestartButton = null;
+     choicesContainerEl.querySelectorAll('button').forEach(btn => {
+         if (btn.id === 'restart-button') {
+             existingRestartButton = btn;
+         }
+     });
+
+     if (existingRestartButton) {
+         console.log("[Game Flow] Restart button already exists from choices.");
+         setChoicesVisibility(true); // Make sure container is visible if restart is the choice
+         existingRestartButton.disabled = false; // Ensure it's clickable
+         return;
+     }
+
+     // If no restart button from choices, create one dynamically
+    if (document.getElementById('dynamic-restart-button')) return; // Avoid adding duplicates
+    if (synth?.speaking) synth.cancel();
+
+    const restartChoice = { text: "Restart Game", nextScene: 'start' };
+    const button = document.createElement('button');
+    // Use specific ID for dynamically added button
+    button.id = "dynamic-restart-button";
+    // Apply restart button styling
+    button.className = `block w-fit mx-auto p-3 mt-4 border-none bg-danger text-white cursor-pointer rounded text-base transition-colors duration-200 ease-in-out hover:bg-danger-dark focus:outline-none focus:ring-2 focus:ring-danger-dark focus:ring-opacity-50`;
+    button.textContent = restartChoice.text;
+    button.onclick = () => handleChoice(restartChoice);
+    button.disabled = false; // Make clickable immediately
+
+    // Append to outcome display or choices container? Let's use choices for consistency
+    choicesContainerEl.appendChild(button);
+    setChoicesVisibility(true); // Make container visible for the restart button
+    console.log("[Game Flow] Added dynamic restart button.");
+}
+
+
+/** Handles moving to the next scene */
+function handleChoice(choiceData) {
+     console.log(`[Game Flow] Handling choice: "${choiceData.text}" -> ${choiceData.nextScene}`);
+
+     // Stop interactions
+     if (synth?.speaking) synth.cancel();
+     if (recognition && isListening) {
+         try { recognition.abort(); } catch(e) {}
+         isListening = false;
+     }
+     sceneTextEl.classList.remove('speaking', 'memory-recall-active');
+
+     if (!choiceData?.nextScene) {
+         console.error("[Game Flow] Invalid choice data (missing nextScene):", choiceData);
+         sceneTextEl.innerHTML = formatText("Error: Invalid choice selected. Please restart.");
+         choicesContainerEl.innerHTML = '';
+        
+         setChoicesVisibility(false);
+         setVocabListVisibility(false);
+         outcomeDisplayEl.innerHTML = '<div class="game-over">ERROR</div>';
+         addRestartButton();
+         updateVoiceButtonUI(); // Disable voice button
+         return;
+     }
+
+     // Proceed to the next scene
+     console.log(`[Game Flow] Moving to scene: ${choiceData.nextScene}`);
+     currentSceneId = choiceData.nextScene;
+     // Reset phases before displaying next scene
+     isMemoryCheckPhase = false;
+     isChoiceSpeakingPhase = false;
+     displayScene(currentSceneId);
+}
+// --- End of Chunk 2 ---
+// --- Start of Chunk 3 ---
+// (Continuing script from Chunk 2)
+
+// --- Event Listener Setup ---
+
+/** Handles clicks on the main voice action button */
+function handleVoiceButtonClick() {
+    console.log(`[Voice Button] Clicked. MemoryPhase: ${isMemoryCheckPhase}, ChoicePhase: ${isChoiceSpeakingPhase}, Listening: ${isListening}`);
+
+    if (!recognition) {
+        console.error("[Voice Button] Recognition not initialized.");
+        voiceStatusEl.textContent = "Voice input system error.";
+        voiceStatusEl.className = 'text-danger';
+        return;
+    }
+    if (!micPermissionGranted) {
+        console.warn("[Voice Button] Mic permission not granted.");
+        voiceStatusEl.textContent = "Microphone access needed.";
+        voiceStatusEl.className = 'text-danger';
+        // requestMicPermission(); // Optionally re-request?
+        return;
+    }
+
+    if (isListening) {
+        console.log("[Voice Button] Currently listening, stopping recognition.");
+        try {
+            recognition.stop();
+        } catch (e) {
+            console.warn("[Voice Button] Error stopping recognition:", e);
+        }
+        // onend will handle UI update
+    } else {
+        // If not listening, start based on phase
+        if (isMemoryCheckPhase) {
+            console.log("[Voice Button] Starting memory recall recognition.");
+            // Hide English text, show Ukrainian/Placeholder
+            if (formattedUkrainianTextForMemoryCheck) {
+                sceneTextEl.innerHTML = formattedUkrainianTextForMemoryCheck;
+            } else {
+                sceneTextEl.innerHTML = "<p class='text-highlight p-2 text-center'>Translation not available.<br/>Recall the English text.</p>";
+            }
+            sceneTextEl.classList.add('memory-recall-active');
+            setVocabListVisibility(false); // Hide vocab during recall attempt
+            setChoicesVisibility(false); // Ensure choices definitely hidden
+
+            try {
+                recognition.lang = 'en-US'; // Ensure English for recall
+                recognition.start();
+            } catch (e) {
+                console.error("[Voice Button] Error starting memory recognition:", e);
+                // Restore UI if start fails
+                sceneTextEl.innerHTML = originalEnglishTextForMemoryCheck;
+                sceneTextEl.classList.remove('memory-recall-active');
+                setVocabListVisibility(true);
+                voiceStatusEl.textContent = "Error starting voice input.";
+                voiceStatusEl.className = 'text-danger';
+                isListening = false;
+                updateVoiceButtonUI();
+            }
+        } else if (isChoiceSpeakingPhase) {
+            console.log("[Voice Button] Starting choice speaking recognition.");
+
+            // *** HIDE CHOICES BEFORE LISTENING FOR CHOICE ***
+            setChoicesVisibility(false);
+            voiceStatusEl.textContent = "Listening for your choice..."; // Update status prompt
+
+            try {
+                recognition.lang = 'en-US'; // Ensure English for choice
+                recognition.start();
+            } catch (e) {
+                console.error("[Voice Button] Error starting choice recognition:", e);
+                voiceStatusEl.textContent = "Error starting voice input.";
+                voiceStatusEl.className = 'text-danger';
+                // Show choices again if listening fails? Or keep hidden? Let's keep hidden.
+                // setChoicesVisibility(true);
+                isListening = false;
+                updateVoiceButtonUI();
+            }
+        } else {
+            console.warn("[Voice Button] Clicked in unexpected state (not memory or choice phase).");
+            // Maybe it's an end scene? Button should be disabled.
+        }
+    }
+}
+
+// --- Replace existing addRestartButton function ---
+function addRestartButton() {
+    // Check if a restart button (dynamic or from choices) already exists
+    if (document.getElementById('restart-button') || document.getElementById('dynamic-restart-button')) {
+         console.log("[Game Flow] Restart button already exists.");
+         // Ensure container is visible if restart button is present
+         setChoicesVisibility(true);
+         // Ensure the button itself is enabled (might have been disabled)
+         const btn = document.getElementById('restart-button') || document.getElementById('dynamic-restart-button');
+         if(btn) btn.disabled = false;
+         return;
+    }
+
+    // If no restart button exists, create one dynamically
+    if (synth?.speaking) synth.cancel();
+
+    const restartChoice = { text: "Restart Game", nextScene: 'start' };
+    const button = document.createElement('button');
+    button.id = "dynamic-restart-button"; // Use specific ID
+    button.className = `block w-fit mx-auto p-3 mt-4 border-none bg-danger text-white cursor-pointer rounded text-base transition-colors duration-200 ease-in-out hover:bg-danger-dark focus:outline-none focus:ring-2 focus:ring-danger-dark focus:ring-opacity-50`;
+    button.textContent = restartChoice.text;
+    button.onclick = () => handleChoice(restartChoice);
+    button.disabled = false; // Make clickable immediately
+
+    choicesContainerEl.appendChild(button);
+    // *** MAKE SURE CONTAINER IS VISIBLE FOR RESTART ***
+    setChoicesVisibility(true);
+    console.log("[Game Flow] Added dynamic restart button.");
+}
+
+
+
+/** Listener for the Start Challenge / Enable Audio button */
+startChallengeBtn.addEventListener('click', () => {
+    console.log("[DEBUG] Start Challenge button clicked.");
+
+    // *** Disable button immediately to prevent rapid clicks / re-entry ***
+    startChallengeBtn.disabled = true;
+    console.log("[DEBUG] Start Challenge Button DISABLED.");
+
+    // Check ttsUnlocked status AFTER disabling
+    console.log(`[DEBUG] Checking ttsUnlocked status: ${ttsUnlocked}`);
+    if (ttsUnlocked) {
+        console.log("[DEBUG] ttsUnlocked is TRUE. Audio already enabled. Ensuring correct final state.");
+        // Keep button disabled as audio is already enabled
+        startChallengeBtn.textContent = 'Listen carefully ✅'; // Ensure text is correct
+        startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark', 'bg-danger'); // Clean up styles
+        startChallengeBtn.classList.add('audio-enabled');
+        return; // Exit, already handled
+    }
+
+    console.log("[DEBUG] ttsUnlocked is FALSE. Proceeding...");
+
+    console.log("[DEBUG] Checking synth support...");
+    if (!synth) {
+        console.error("[DEBUG] Speech synthesis NOT SUPPORTED.");
+        alert("Speech synthesis not supported by this browser.");
+        startChallengeBtn.textContent = 'Audio Not Supported';
+        // Button remains disabled
+        return;
+    }
+
+    console.log("[DEBUG] Synth support confirmed. Attempting to unlock TTS...");
+    startChallengeBtn.textContent = 'Enabling Audio...'; // Provide feedback
+
+    const utterance = new SpeechSynthesisUtterance("Listen carefully.");
+    utterance.volume = 0.01; // Keep it quiet/fast
+    utterance.rate = 1.0;
+
+    let eventFired = false; // Flag to track if onend/onerror occurs
+    let fallbackTimer = null; // Timer handle
+
+    utterance.onstart = () => {
+        console.log("[DEBUG] TTS utterance started successfully.");
+        // Optional: Clear the fallback timer if onstart fires,
+        // as it means the synth engine is responding.
+        // if (fallbackTimer) clearTimeout(fallbackTimer);
+    };
+
+    utterance.onend = () => {
+        console.log("[DEBUG] TTS utterance finished (onend). Setting ttsUnlocked=true.");
+        if (fallbackTimer) clearTimeout(fallbackTimer); // Clear timeout if event fires
+        eventFired = true;
+        if (!ttsUnlocked) { // Avoid running startGame twice if timeout also fired
+            ttsUnlocked = true;
+            startChallengeBtn.textContent = 'Listen carefully ✅';
+            startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark', 'bg-danger');
+            startChallengeBtn.classList.add('audio-enabled');
+            // Button remains disabled (as intended after success)
+
+            console.log("[DEBUG] TTS unlocked via onend. Calling startGame()...");
+            setTimeout(startGame, 50); // Short delay after state change
+        }
+    };
+
+    utterance.onerror = (e) => {
+        console.error("[DEBUG] TTS utterance ONSYNTH ERROR:", e.error, e);
+         if (fallbackTimer) clearTimeout(fallbackTimer); // Clear timeout if event fires
+        eventFired = true;
+        if (!ttsUnlocked) { // Avoid running startGame twice
+            alert(`Failed to enable audio: ${e.error}. Sound may not work. Trying to continue anyway...`);
+            ttsUnlocked = true; // Attempt to proceed despite error
+            startChallengeBtn.textContent = 'Audio Failed - Continuing';
+            startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark');
+            startChallengeBtn.classList.add('audio-enabled', 'bg-danger');
+            // Button remains disabled
+
+            console.log("[DEBUG] TTS unlock failed via onerror. Attempting to call startGame() anyway...");
+            setTimeout(startGame, 50);
+        }
+    };
+
+    // --- Fallback Timer ---
+    // If neither onend nor onerror has fired after a reasonable time,
+    // assume the TTS unlock is stuck or failed silently. Force proceed.
+    fallbackTimer = setTimeout(() => {
+        console.log("[DEBUG] Fallback timer executing check...");
+        if (!eventFired && !ttsUnlocked) { // Check if events fired or state changed
+            console.warn("[DEBUG] TTS unlock fallback: Neither onend nor onerror fired after 2 seconds. Assuming failure but proceeding.");
+            alert("Audio enablement timed out. Sound may not work. Trying to continue anyway...");
+            ttsUnlocked = true; // Force unlock state
+            startChallengeBtn.textContent = 'Audio Timeout - Continuing';
+            startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark');
+            startChallengeBtn.classList.add('audio-enabled', 'bg-danger');
+             // Button remains disabled
+
+            console.log("[DEBUG] TTS unlock timed out. Attempting to call startGame()...");
+            // No need for another setTimeout here, as we are already in one
+            startGame();
+        } else {
+             console.log("[DEBUG] Fallback timer: Event already fired or TTS unlocked. No action needed.");
+        }
+    }, 2000); // 2 second timeout
+
+    // --- Attempt to Speak ---
+    try {
+        console.log("[DEBUG] Calling synth.speak(utterance)...");
+        // Clear any previous synth queue just in case
+        if (synth.speaking || synth.pending) {
+            console.warn("[DEBUG] Cancelling existing speech before new unlock attempt.");
+            synth.cancel();
+        }
+        synth.speak(utterance);
+        console.log("[DEBUG] synth.speak() called without immediate error.");
+
+    } catch (e) {
+        console.error("[DEBUG] Error thrown immediately by synth.speak():", e);
+        if (fallbackTimer) clearTimeout(fallbackTimer); // Clear timeout on immediate error
+        eventFired = true; // Error is an event
+        if (!ttsUnlocked) { // Avoid running startGame twice
+            alert("Could not initiate audio enablement due to an immediate error. Trying to continue anyway...");
+            ttsUnlocked = true; // Attempt to proceed
+            startChallengeBtn.textContent = 'Audio Error - Continuing';
+            startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark');
+            startChallengeBtn.classList.add('audio-enabled', 'bg-danger');
+            // Button remains disabled
+
+            console.log("[DEBUG] synth.speak() threw error. Attempting to call startGame() anyway...");
+            setTimeout(startGame, 50);
+        }
+    }
+});
+
+
+// --- Game Initialization ---
+
+/** Requests microphone permission */
+async function requestMicPermission() {
+     if (!SpeechRecognitionAPI) {
+         console.log("[Init] Speech Rec not supported, skipping mic request.");
+          micPermissionGranted = false;
+         return false;
+     }
+     if (micPermissionGranted === true) {
+         console.log("[Init] Mic permission already granted.");
+         return true;
+     }
+     if (micPermissionGranted === false) {
+         console.log("[Init] Mic permission previously denied.");
+         // Don't re-prompt if explicitly denied previously, user must change in settings
+         return false;
+     }
+
+     // If status is null (unknown)
+     try {
+         console.log("[Init] Requesting microphone permission...");
+         voiceStatusEl.textContent = "Requesting microphone access...";
+         voiceStatusEl.className = 'text-info';
+         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+         console.log("[Init] Microphone permission GRANTED.");
+         micPermissionGranted = true;
+         stream.getTracks().forEach(track => track.stop()); // Release mic indicator
+         voiceStatusEl.textContent = ""; // Clear prompt
+         return true;
+     } catch (err) {
+         console.error("[Init] Microphone permission DENIED or error:", err.name, err.message);
+         micPermissionGranted = false;
+         voiceStatusEl.textContent = "Microphone access denied. Voice input disabled.";
+         voiceStatusEl.className = 'text-danger';
+         return false;
+     }
+}
+
+/** Initializes the game state and starts the first scene */
+async function startGame() {
+     console.log("[Init] startGame() called. TTS Unlocked:", ttsUnlocked);
+
+     // --- Wait for TTS Unlock ---
+     if (!ttsUnlocked) {
+         console.log("[Init] TTS not unlocked. Displaying 'Start Challenge' prompt.");
+         sceneTextEl.innerHTML = `<div class='p-4 text-center text-lg text-highlight'>Click the 'Start the challenge' button above to begin.</div>`;
+         choicesContainerEl.innerHTML = '';
+         setChoicesVisibility(false);
+         setVocabListVisibility(false);
+         outcomeDisplayEl.innerHTML = '';
+         voiceButton.disabled = true; // Voice button disabled initially
+         updateVoiceButtonUI();
+         startChallengeBtn.disabled = false; // Ensure start button is clickable
+         startChallengeBtn.textContent = 'Start the challenge 🚀';
+         startChallengeBtn.classList.remove('audio-enabled');
+         startChallengeBtn.classList.add('bg-accent', 'hover:bg-accent-dark');
+         return; // Wait for button click
+     }
+
+    // --- TTS Unlocked - Proceed ---
+    console.log("[Init] TTS unlocked. Initializing game elements.");
+    currentSceneId = 'start';
+    isMemoryCheckPhase = false;
+    isChoiceSpeakingPhase = false;
+    memoryCheckPassed = false;
+
+     // Ensure voices are loaded before selecting
+     if (synth.getVoices().length === 0 && voicesLoaded === false) {
+         console.log("[Init] Waiting for voices to load...");
+         await new Promise(resolve => {
+             if (voicesLoaded) resolve(); // Already loaded by the time we check
+             else synth.addEventListener('voiceschanged', resolve, { once: true });
+         });
+         console.log("[Init] Voices loaded.");
+     }
+     selectedVoice = getBestVoice();
+     console.log("[Init] Selected TTS voice:", selectedVoice ? selectedVoice.name : "default");
+     
+     // Initialize Speech Recognition (checks support internally)
+     initializeSpeechRecognition();
+
+     // Request Microphone Permission (only if needed and possible)
+     await requestMicPermission();
+
+     // Attach the single click listener to the voice button
+     voiceButton.removeEventListener('click', handleVoiceButtonClick); // Remove old first
+     voiceButton.addEventListener('click', handleVoiceButtonClick);
+     console.log("[Init] Voice button click listener attached.");
+
+
+     // Final update to button UI after permissions etc.
+     updateVoiceButtonUI();
+
+     // Display the First Scene
+     console.log(`[Init] Initialization complete. Displaying first scene: '${currentSceneId}'.`);
+     displayScene(currentSceneId);
+}
+
+// =====================================================================
+// ❷  Observe DOM changes so any new English text becomes translatable
+// =====================================================================
+// --------------- включити після displayScene() -----------------
+const root = document.getElementById('game-container');
+makeTextNodesTranslatable(root);   // стартова обгортка
+
+const obs = new MutationObserver(muts=>{
+    muts.forEach(m=>{
+        m.addedNodes.forEach(n=>{
+            if(n.nodeType===Node.ELEMENT_NODE) makeTextNodesTranslatable(n);
+        });
+    });
+});
+obs.observe(root,{childList:true,subtree:true});
+
+
+// --- Initial Page Load ---
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("[Init] DOMContentLoaded. Calling startGame() for initial setup.");
+    startGame(); // Shows prompt or starts game if audio already enabled (e.g., refresh)
+});
+
+// --- End of Chunk 3 ---
+</script>
+</body>
+</html>

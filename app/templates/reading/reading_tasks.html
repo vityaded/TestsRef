@@ -1,0 +1,26 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Reading Activities{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <h1 class="text-center">Reading Activities</h1>
+  {% if activities %}
+    <div class="row">
+      {% for activity in activities %}
+        <div class="col-md-6 mb-4">
+          <div class="card h-100">
+            <div class="card-body">
+              <h5 class="card-title">{{ activity.title }}</h5>
+              <!-- Optional: Display progress or other details -->
+              <a href="{{ url_for('reading.reading_activity', activity_id=activity.id, page_number=1) }}" class="btn btn-primary">Start Reading</a>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p>No reading activities available at the moment.</p>
+  {% endif %}
+</div>
+{% endblock %}

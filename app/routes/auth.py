@@ -35,7 +35,7 @@ def signup():
         # Create new user
         new_user = User(
             username=username,
-            password=generate_password_hash(password, method='sha256')
+            password=generate_password_hash(password, method="pbkdf2:sha256")
         )
 
         # Add new user to the database

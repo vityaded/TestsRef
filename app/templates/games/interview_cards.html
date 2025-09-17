@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flippable Question Cards</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles for the 3D flip effect */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .scene {
+            perspective: 1000px;
+        }
+
+        .card {
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+            cursor: pointer;
+        }
+
+        .card.is-flipped {
+            transform: rotateY(180deg);
+        }
+
+        .card-face {
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden; /* Safari */
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+
+        .card-face-back {
+            transform: rotateY(180deg);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-5xl font-bold text-gray-800 dark:text-white">Interview Questions</h1>
+            <p class="text-lg text-gray-600 dark:text-gray-400 mt-2">Click on a card to reveal the question.</p>
+        </header>
+
+        <!-- Grid for the cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Questions will be dynamically inserted here by JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        // Array of questions extracted from the images
+        const questions = [
+            "What would you do if you were the one survivor in a plane crash? (Airbnb)",
+            "Who do you think would win in a fight between Spider-Man and Batman? (Stanford University)",
+            "What did you have for breakfast? (Banana Republic)",
+            "Describe the colour yellow to somebody who's blind. (Spirit Airlines)",
+            "How many people flew out of Chicago last year? (Redbox software)",
+            "What am I thinking right now? (TES Global)",
+            "Who is your hero, and why? (General Electrics)",
+            "Tell me something about your childhood. (Next)",
+            "What do you usually do after a bad day at work?",
+            "What's your biggest weakness?",
+            "How would your enemy describe you?",
+            "You have 50 red and 50 blue balls. How could you divide these between two containers to give the maximum probability of picking one of the colours?",
+            "What's the most selfish thing you've ever done?",
+            "Are you a nice person?",
+            "What on your CV is the closest thing to a lie?"
+        ];
+
+        const cardGrid = document.querySelector('.grid');
+
+        // Function to create a single card
+        function createCard(questionText) {
+            const scene = document.createElement('div');
+            scene.className = 'scene w-full h-64';
+
+            const card = document.createElement('div');
+            card.className = 'card relative w-full h-full';
+
+            // Card Front
+            const cardFront = document.createElement('div');
+            cardFront.className = 'card-face card-face-front flex items-center justify-center p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700';
+            cardFront.innerHTML = `
+                <div class="text-center">
+                    <svg class="w-16 h-16 mx-auto text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <p class="mt-2 text-lg font-semibold text-gray-700 dark:text-gray-300">Click to Reveal</p>
+                </div>
+            `;
+
+
+            // Card Back
+            const cardBack = document.createElement('div');
+            cardBack.className = 'card-face card-face-back flex items-center justify-center p-6 bg-indigo-500 dark:bg-indigo-600 text-white rounded-lg shadow-lg';
+            cardBack.innerHTML = `<p class="text-center text-lg font-medium">${questionText}</p>`;
+
+            card.appendChild(cardFront);
+            card.appendChild(cardBack);
+            scene.appendChild(card);
+
+            // Add click event listener to flip the card
+            card.addEventListener('click', () => {
+                card.classList.toggle('is-flipped');
+            });
+
+            return scene;
+        }
+
+        // Populate the grid with cards
+        questions.forEach(question => {
+            const cardElement = createCard(question);
+            cardGrid.appendChild(cardElement);
+        });
+    </script>
+</body>
+</html>

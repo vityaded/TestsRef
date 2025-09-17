@@ -1,0 +1,296 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ activity.title }} - Page {{ page.page_number }}{% endblock %}
+
+{% block content %}
+<h1>{{ activity.title }}</h1>
+<h3>Page {{ page.page_number }}</h3>
+
+{# Use user's Jinja logic for initial word splitting/class assignment #}
+<div id="text-container" class="mb-3">
+    {% set non_english_words = ['bonjour', 'amigo', 'sayonara', 'café', 'façade', 'jalapeño', 'résumé', 'naïve'] %}
+    {% for word in page.content.split() %}
+        {% set stripped_word = word.strip('.,;!?()”“:') %} {# Strip common punctuation from ends for class assignment #}
+        {% set is_proper_noun = stripped_word and stripped_word[0].isupper() and not loop.first %}
+        {% set is_non_english = stripped_word and stripped_word|lower in non_english_words %}
+        {% set word_classes = 'word' %}
+        {% if is_proper_noun %}{% set word_classes = word_classes + ' proper-noun' %}{% endif %}
+        {% if is_non_english %}{% set word_classes = word_classes + ' non-english' %}{% endif %}
+        <span class="{{ word_classes }}">{{ word }}</span>{# Add space #}
+    {% endfor %}
+</div>
+
+{# Control Buttons #}
+<div class="mb-3">
+    <button id="start-btn" class="btn btn-primary">Start Reading</button>
+    <button id="stop-btn" class="btn btn-secondary" disabled>Stop</button>
+</div>
+
+{# Next Page Button #}
+{% if page.page_number < activity.pages|length %}
+    <button id="next-btn" class="btn btn-success" style="display: none;">Next Page</button>
+{% endif %}
+
+{# Speech Recognition Output Area #}
+<div id="speech-recognition-output" class="mb-3" style="margin-top: 20px;">
+    <h6>Speech Recognition Output:</h6>
+    <p id="recognized-text" class="text-muted font-italic" style="font-size: 1.1em;"></p> {# Adjusted style slightly #}
+</div>
+
+{% endblock %}
+
+
+{# ----- JavaScript Block ----- #}
+{% block scripts %}
+{{ super() }} {# Include scripts from base template #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Page loaded and script initialized.');
+
+    // DOM Elements
+    const startBtn = document.getElementById('start-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const words = document.querySelectorAll('#text-container .word');
+    const recognizedTextElement = document.getElementById('recognized-text');
+
+    // State Variables (using user's structure)
+    let wordIndex = 0;
+    let isRecognizing = false;
+    let incorrectAttempts = 0;
+    let isSpeaking = false;
+    let stopButtonClicked = false; // Flag to check if stop was intentional
+
+    // --- Configuration Data (with enhanced number map) ---
+    const nonEnglishWords = ['bonjour', 'amigo', 'sayonara', 'café', 'façade', 'jalapeño', 'résumé', 'naïve'];
+    const contractions = { "don't": "do not", /* ... */ "let's": "let us"};
+    const spellingVariants = { 'color': 'colour', /* ... */ 'jewelry': 'jewellery' };
+    const numberWordsToDigits = { 'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10', 'eleven': '11', 'twelve': '12', 'thirteen': '13', 'fourteen': '14', 'fifteen': '15', 'sixteen': '16', 'seventeen': '17', 'eighteen': '18', 'nineteen': '19', 'twenty': '20', 'thirty': '30', 'forty': '40', 'fifty': '50', 'sixty': '60', 'seventy': '70', 'eighty': '80', 'ninety': '90', 'hundred': '100', 'thousand': '1000', 'twenty one': '21', 'twenty two': '22', 'seventy one': '71', 'seventy two': '72', 'seventy three': '73', 'nineteen seventy two': '1972', 'nineteen eighty four': '1984', 'nineteen ninety nine': '1999', 'two thousand': '2000', 'two thousand one': '2001', 'two thousand ten': '2010', 'twenty twenty': '2020', 'twenty twenty one': '2021', 'twenty twenty two': '2022', 'twenty twenty three': '2023', 'twenty twenty four': '2024', 'twenty twenty five': '2025'};
+    const numberDigitsToWords = Object.fromEntries(Object.entries(numberWordsToDigits).map(([k, v]) => [v, k]));
+
+    // --- Speech Recognition Setup ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) { /* ... alert and disable ... */ return; }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    // --- Recognition Event Handlers ---
+    recognition.onstart = () => {
+        console.log('DEBUG: SR started.');
+        isRecognizing=true;
+        startBtn.disabled=true;
+        stopBtn.disabled=false;
+        stopButtonClicked = false; // Reset flag
+        highlightCurrentWord();
+    };
+    recognition.onerror = (event) => { console.error('DEBUG: SR error:', event.error); };
+    recognition.onend = () => {
+        console.log('DEBUG: SR ended.');
+        isRecognizing=false;
+        startBtn.disabled=false;
+        stopBtn.disabled=true;
+        removeHighlightFromCurrentWord();
+        // Restart only if not finished, not speaking, and stop wasn't manually clicked
+        if (!isSpeaking && wordIndex < words.length && !stopButtonClicked) {
+            console.log("DEBUG: SR ended unexpectedly? Restarting...");
+            startRecognition();
+        }
+    };
+
+    // onresult (Using user's logic - processes latest transcript)
+    recognition.onresult = (event) => {
+        if (isSpeaking) return;
+        let latestResultText = '';
+        if (event.results.length > 0) {
+             latestResultText = event.results[event.results.length - 1][0].transcript.trim();
+        }
+        // console.log('DEBUG: SR result received:', latestResultText);
+        if (latestResultText) {
+            recognizedTextElement.textContent = latestResultText;
+            processSpokenWords(latestResultText.toLowerCase()); // Pass latest transcript lowercase
+        }
+    };
+
+    // --- Helper: Word Cleaning (Unchanged) ---
+    function cleanWord(word) {
+        if (!word) return '';
+        let cleaned = word.toLowerCase();
+        cleaned = cleaned.replace(/^[.,;!?"“”:()\[\]{}*&%$#@^~`+|\\/]+|[.,;!?"“”:()\[\]{}*&%$#@^~`+|\\/]+$/g, '');
+        return cleaned.trim();
+    }
+
+    // --- Core Logic: processSpokenWords ---
+    function processSpokenWords(spokenTranscript) {
+        // console.log('DEBUG: Processing:', spokenTranscript);
+        if (wordIndex >= words.length) return;
+
+        let spokenWordsArray = spokenTranscript.split(/\s+/).filter(w => w.length > 0);
+        spokenWordsArray = spokenWordsArray.map(word => contractions[word] || word).flatMap(word => word.split(' '));
+        if (spokenWordsArray.length === 0) return;
+
+        const currentWordElement = words[wordIndex];
+        let expectedWordRaw = currentWordElement.textContent;
+        let expectedWordClean = cleanWord(expectedWordRaw);
+        let expectedWordsArray = expectedWordClean.split(' ').filter(w => w.length > 0);
+        if (expectedWordsArray.length === 0) { /* Skip */ console.warn(`Skipping empty expected @${wordIndex}`); wordIndex++; incorrectAttempts = 0; highlightCurrentWord(); return; }
+
+        if (spokenWordsArray.length >= expectedWordsArray.length) {
+            let spokenSegmentArray = spokenWordsArray.slice(-expectedWordsArray.length);
+            // console.log(`DEBUG: Comparing Expected[${expectedWordsArray.join(',')}] vs Spoken[${spokenSegmentArray.join(',')}]`);
+
+            const isProperNoun = currentWordElement.classList.contains('proper-noun');
+            const isNonEnglish = currentWordElement.classList.contains('non-english');
+            let wordAccepted = isSegmentMatch(expectedWordsArray, spokenSegmentArray, {isProperNoun, isNonEnglish});
+
+            if (wordAccepted) {
+                console.log(`DEBUG: *** Word ${wordIndex} "${expectedWordRaw}" ACCEPTED ***`);
+                currentWordElement.classList.remove('current-word', 'incorrect');
+                currentWordElement.classList.add('highlighted', 'word-correct-flash');
+                setTimeout(() => { if(currentWordElement) currentWordElement.classList.remove('word-correct-flash'); }, 500);
+                wordIndex++; incorrectAttempts = 0;
+                if (wordIndex < words.length) { highlightCurrentWord(); }
+                else { /* Finished page */ stopRecognition(); nextBtn.style.display = 'inline-block'; unlockNextPage(); }
+            } else { // Word Not Accepted
+                // console.log(`DEBUG: Word ${wordIndex} "${expectedWordRaw}" REJECTED`);
+                incorrectAttempts++;
+                // console.log(`DEBUG: Incorrect attempts: ${incorrectAttempts}`);
+                currentWordElement.classList.add('incorrect'); // Temporary visual cue
+                setTimeout(() => { if(currentWordElement) currentWordElement.classList.remove('incorrect'); }, 1000);
+                if (incorrectAttempts === 10) { playPronunciation(currentWordElement.textContent); }
+                if (incorrectAttempts >= 18) { /* Skip */ console.warn(`Skipping "${expectedWordRaw}"`); currentWordElement.classList.add('skipped'); currentWordElement.classList.remove('current-word','incorrect'); wordIndex++; incorrectAttempts=0; if(wordIndex<words.length){highlightCurrentWord()}else{stopRecognition();nextBtn.style.display='inline-block';unlockNextPage();}}
+            }
+        }
+    } // End processSpokenWords
+
+    // --- Matching Logic (with more logging) ---
+    function isSegmentMatch(expectedWordsArray, spokenSegmentArray, options) {
+        console.log(`DEBUG --- isSegmentMatch ---`);
+        console.log(`DEBUG Expected Array: [${expectedWordsArray.join('|')}]`);
+        console.log(`DEBUG Spoken Array:   [${spokenSegmentArray.join('|')}]`);
+
+        if (!expectedWordsArray || !spokenSegmentArray || expectedWordsArray.length !== spokenSegmentArray.length) {
+            console.log("DEBUG Match Fail: Length mismatch or invalid input");
+            return false;
+        }
+
+        // 1. Direct Exact Match
+        let exactMatch = expectedWordsArray.every((word, i) => word === spokenSegmentArray[i]);
+        if (exactMatch) {
+            console.log("DEBUG Match Success: Exact array match");
+            return true;
+        }
+
+        // 2. Phrase-level Number Equivalence
+        // Handle hyphens when joining expected phrase
+        const expectedPhrase = expectedWordsArray.map(w => w.replace(/-/g, ' ')).join(' ').replace(/\s+/g, ' ').trim();
+        // Spoken phrase usually doesn't have hyphens if split by space, but join anyway
+        const spokenPhrase = spokenSegmentArray.join(' ').trim();
+        console.log(`DEBUG Comparing Phrases - Expected: "${expectedPhrase}", Spoken: "${spokenPhrase}"`);
+
+        if (areNumbersEquivalent(expectedPhrase, spokenPhrase)) {
+            // Logging done inside areNumbersEquivalent
+            return true;
+        }
+
+        // 3. Single Word Checks (only if arrays have length 1)
+        if (expectedWordsArray.length === 1 && spokenSegmentArray.length === 1) {
+            const expectedWord = expectedWordsArray[0];
+            const spokenWord = spokenSegmentArray[0];
+            // Handle hyphens for single word comparison
+            const expectedNoHyphen = expectedWord.replace(/-/g,'');
+            const spokenNoHyphen = spokenWord.replace(/-/g,''); // Should usually be no hyphen here
+
+            if (areSpellingVariants(expectedNoHyphen, spokenNoHyphen)) {
+                 console.log(`DEBUG Match Success: Single Variant Match (${expectedWord} vs ${spokenWord})`);
+                 return true;
+            }
+            if (wordsAreSimilar(expectedNoHyphen, spokenNoHyphen)) {
+                 console.log(`DEBUG Match Success: Single Similar Match (${expectedWord} vs ${spokenWord})`);
+                 return true;
+            }
+        }
+
+        console.log("DEBUG Match Fail: No specific checks passed.");
+        return false;
+    }
+
+    // --- Matching Helpers ---
+    function areNumbersEquivalent(expectedPhrase, spokenPhrase) {
+        console.log(`DEBUG Checking Numbers: ExpP:"${expectedPhrase}", SpkP:"${spokenPhrase}"`);
+        if (!expectedPhrase || !spokenPhrase) return false;
+        let match = false;
+        // Check word -> digit
+        const expectedAsDigit = numberWordsToDigits[expectedPhrase];
+        if (expectedAsDigit !== undefined && expectedAsDigit === spokenPhrase) {
+             console.log(`DEBUG Number Success: Word->Digit (${expectedPhrase} -> ${expectedAsDigit} === ${spokenPhrase})`);
+             match = true;
+        }
+        // Check digit -> word
+        const expectedAsWord = numberDigitsToWords[expectedPhrase];
+        if (!match && expectedAsWord !== undefined && expectedAsWord === spokenPhrase) {
+             console.log(`DEBUG Number Success: Digit->Word (${expectedPhrase} -> ${expectedAsWord} === ${spokenPhrase})`);
+             match = true;
+        }
+        // Check if both map to the same digit (covers word->word via digit mapping)
+        const spokenAsDigit = numberWordsToDigits[spokenPhrase];
+        if (!match && expectedAsDigit !== undefined && expectedAsDigit === spokenAsDigit) {
+             console.log(`DEBUG Number Success: Word->Word via Digit (${expectedPhrase}->${expectedAsDigit} === ${spokenPhrase}->${spokenAsDigit})`);
+             match = true;
+        }
+        if (!match) {
+             console.log("DEBUG Number Fail: No equivalence found.");
+        }
+        return match;
+    }
+    function areSpellingVariants(ew, sw) { return spellingVariants[ew]===sw||spellingVariants[sw]===ew;}
+    function wordsAreSimilar(ew, sw) { const d=levenshteinDistance(ew,sw); const t=Math.floor(ew.length/5); return d<=Math.max(1,t);}
+    function levenshteinDistance(a, b) { const an=a?a.length:0,bn=b?b.length:0;if(an===0)return bn;if(bn===0)return an;const m=Array(bn+1).fill(null).map(()=>Array(an+1).fill(null));for(let i=0;i<=an;i+=1){m[0][i]=i}for(let j=0;j<=bn;j+=1){m[j][0]=j}for(let j=1;j<=bn;j+=1){for(let i=1;i<=an;i+=1){const ind=a[i-1]===b[j-1]?0:1;m[j][i]=Math.min(m[j][i-1]+1,m[j-1][i]+1,m[j-1][i-1]+ind)}}return m[bn][an];}
+
+
+    // --- UI & Control ---
+    function highlightCurrentWord() { words.forEach(w=>w.classList.remove('current-word')); if(wordIndex<words.length){words[wordIndex].classList.add('current-word'); words[wordIndex].scrollIntoView({behavior:'smooth',block:'center'});} }
+    function removeHighlightFromCurrentWord() { if(wordIndex<words.length){words[wordIndex].classList.remove('current-word');} }
+    function unlockNextPage() { console.log('Unlocking page.');fetch('{{url_for("reading.unlock_page",activity_id=activity.id,page_number=page.page_number+1)}}',{method:'POST',headers:{'X-CSRFToken':'{{csrf_token}}','Content-Type':'application/json'}}).then(r=>{if(!r.ok)throw new Error('Network error');console.log('Unlock success.')}).catch(e=>{console.error('Unlock error:',e);});}
+    function startRecognition() { if(!isRecognizing){try{recognition.start()}catch(e){console.error("Start Rec Error:", e)}}}
+    function stopRecognition() { if(isRecognizing){stopButtonClicked = true; try{recognition.stop()}catch(e){console.error("Stop Rec Error:", e)}} } // Set flag here
+
+    // --- Speech Synthesis (Fixed onerror from previous step) ---
+    const synth = window.speechSynthesis;
+    function playPronunciation(text) { if (isSpeaking) return; /*...*/ let r=isRecognizing; utterance.onerror = (event) => {console.error('Synth error:', event.error); isSpeaking=false; if(r&&wordIndex<words.length){startRecognition()}}; /*...*/ setTimeout(()=>{synth.speak(u)},100);}
+
+    // --- Event Listeners ---
+    startBtn.addEventListener('click', startRecognition);
+    stopBtn.addEventListener('click', stopRecognition); // Uses helper now
+    nextBtn.addEventListener('click', () => { window.location.href = '{{ url_for("reading.reading_activity", activity_id=activity.id, page_number=page.page_number + 1) }}'; });
+    if (synth) { words.forEach(w => { w.addEventListener('click', () => { playPronunciation(w.textContent); }); }); }
+    else { alert('Speech Synthesis not supported.'); }
+
+    // --- Utility Functions ---
+    function disableSpeechRecognition() { startBtn.disabled=true; stopBtn.disabled=true; alert('SR not supported.'); }
+
+});
+</script>
+{% endblock %}
+
+
+{# ----- CSS Styles Block (Unchanged from last version) ----- #}
+{% block styles %}
+{{ super() }} {# Include styles from base template if any #}
+<style>
+@keyframes wordCorrectFlash {0%{transform:scale(1.05);box-shadow:0 0 8px 4px rgba(76,175,80,0.5)}50%{transform:scale(1.0);box-shadow:0 0 6px 3px rgba(76,175,80,0.4)}100%{transform:scale(1.0);box-shadow:none;background-color:#a3e9a4;color:#155724;font-weight:bold;border:1px solid #97d998}}
+.word-correct-flash {animation-name:wordCorrectFlash; animation-duration:0.5s; animation-timing-function:ease-out; animation-fill-mode:forwards;}
+.word { padding: 2px; cursor: pointer; display: inline-block; line-height: 1.6; transition: background-color 0.3s ease; border-radius: 3px; }
+.proper-noun { font-style: italic; }
+.non-english { text-decoration: underline; }
+.highlighted { background-color:#a3e9a4; color:#155724; font-weight:bold; border:1px solid #97d998; padding:2px 3px; margin:0; }
+.current-word { background-color: yellow; }
+.incorrect { border-bottom: 2px solid red; transition: border-bottom 0.1s ease-in-out;}
+.skipped { text-decoration: line-through; color: #6c757d; }
+.no-speech-synthesis { pointer-events: none; cursor: default; }
+#speech-recognition-output { margin-top: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f8f9fa; min-height: 50px; }
+#speech-recognition-output h6 { margin-bottom: 0.5rem; color: #6c757d; }
+#recognized-text { font-size: 1.1em; color: #0056b3; font-style: italic; margin-bottom: 0; }
+</style>
+{% endblock %}
