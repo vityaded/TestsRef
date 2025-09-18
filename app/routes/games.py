@@ -1,9 +1,12 @@
 # Corrected app/routes/games.py using current_app.root_path
 
 import os
-from flask import Blueprint, render_template, current_app, abort, url_for
-from flask_login import login_required # Add if games require login
+from flask import Blueprint, render_template, current_app, abort, url_for, flash, redirect
+from flask_login import login_required  # Add if games require login
 import jinja2
+from werkzeug.utils import secure_filename
+
+from app.forms import AddGameForm
 
 # Define the blueprint
 games_bp = Blueprint('games', __name__, url_prefix='/games')
@@ -81,7 +84,49 @@ def index():
     """Displays the list of available games."""
     print("--- DEBUG: games.index route called ---")
     available_games = get_game_templates()
-    return render_template('games/index.html', games=available_games)
+    form = AddGameForm()
+    return render_template('games/index.html', games=available_games, form=form)
+
+@games_bp.route('/add', methods=['POST'])
+@login_required
+def add_game():
+    """Creates a new game template from the provided HTML content."""
+    form = AddGameForm()
+
+    if form.validate_on_submit():
+        game_name = form.name.data.strip()
+        html_content = form.content.data
+        sanitized_name = secure_filename(game_name).lower()
+
+        if not sanitized_name:
+            flash('Invalid game name. Please use letters, numbers, or underscores.', 'danger')
+            return redirect(url_for('games.index'))
+
+        file_name = f"{sanitized_name}.html"
+        games_dir = os.path.join(current_app.root_path, 'templates', 'games')
+        os.makedirs(games_dir, exist_ok=True)
+        file_path = os.path.join(games_dir, file_name)
+
+        if os.path.exists(file_path):
+            flash('A game with this name already exists. Please choose another name.', 'danger')
+            return redirect(url_for('games.index'))
+
+        try:
+            with open(file_path, 'w', encoding='utf-8') as game_file:
+                game_file.write(html_content)
+        except OSError as exc:
+            current_app.logger.exception('Failed to create game template %s: %s', file_name, exc)
+            flash('Could not save the game. Please try again later.', 'danger')
+        else:
+            flash('Game added successfully!', 'success')
+            return redirect(url_for('games.play', game_name=sanitized_name))
+
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
+
+    return redirect(url_for('games.index'))
 
 @games_bp.route('/<string:game_name>')
 #@login_required
