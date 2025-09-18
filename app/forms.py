@@ -22,6 +22,11 @@ class AddTestForm(FlaskForm):
     shuffle_paragraphs = BooleanField('Shuffle Paragraphs')
     submit = SubmitField('Add Test')
 
+class AddGameForm(FlaskForm):
+    name = StringField('Game Name', validators=[DataRequired(), Length(min=1, max=150)])
+    content = TextAreaField('Game HTML', validators=[DataRequired()])
+    submit = SubmitField('Save Game')
+
 class EditTestForm(FlaskForm):
     name = StringField('Test Name', validators=[DataRequired(), Length(min=1, max=150)])
     time_limit = IntegerField('Time Limit (minutes)', validators=[Optional(), NumberRange(min=1)])
