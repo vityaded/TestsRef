@@ -1,20 +1,79 @@
-import os
-from flask import Flask, render_template
+import logging
+import sys
+from flask import Flask, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_wtf import CSRFProtect
 from .config import Config
+from jinja2 import TemplateNotFound
+from werkzeug.exceptions import HTTPException
 
 db = SQLAlchemy()
 login_manager = LoginManager()
 migrate = Migrate()
 csrf = CSRFProtect()
 
+
+def configure_logging(app):
+    """Configure application logging to stream detailed diagnostics."""
+
+    log_level = logging.DEBUG if app.config.get("DEBUG") else logging.INFO
+    formatter = logging.Formatter(
+        "[%(asctime)s] %(levelname)s in %(name)s: %(message)s"
+    )
+
+    gunicorn_error_logger = logging.getLogger("gunicorn.error")
+    handlers = []
+
+    if gunicorn_error_logger.handlers:
+        handlers = gunicorn_error_logger.handlers
+    else:
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setFormatter(formatter)
+        handlers = [stream_handler]
+
+    app.logger.handlers = []
+    for handler in handlers:
+        handler.setLevel(log_level)
+        if handler.formatter is None:
+            handler.setFormatter(formatter)
+        if handler not in app.logger.handlers:
+            app.logger.addHandler(handler)
+
+    app.logger.setLevel(log_level)
+    app.logger.propagate = False
+
+    root_logger = logging.getLogger()
+    root_logger.handlers = []
+    for handler in handlers:
+        if handler not in root_logger.handlers:
+            root_logger.addHandler(handler)
+    root_logger.setLevel(log_level)
+
+    gunicorn_access_logger = logging.getLogger("gunicorn.access")
+    if not gunicorn_access_logger.handlers:
+        for handler in handlers:
+            gunicorn_access_logger.addHandler(handler)
+
+    for handler in gunicorn_access_logger.handlers:
+        handler.setLevel(log_level)
+        if handler.formatter is None:
+            handler.setFormatter(formatter)
+    gunicorn_access_logger.setLevel(log_level)
+
+    app.logger.debug(
+        "Logging configured. Active level: %s",
+        logging.getLevelName(log_level),
+    )
+
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
-    
+
+    configure_logging(app)
+
     # Initialize extensions
     db.init_app(app)
     login_manager.init_app(app)
@@ -44,16 +103,77 @@ def create_app():
     # Set up Login Manager
     login_manager.login_view = 'auth.login'
 
-    # Error handlers
+    # Error handlers and request logging
     from flask_wtf.csrf import CSRFError
+
+    @app.before_request
+    def log_request():
+        app.logger.debug("Handling request %s %s", request.method, request.path)
+
+    @app.after_request
+    def log_response(response):
+        status = response.status_code
+        if status >= 500:
+            app.logger.error(
+                "Server error response %s for %s %s",
+                status,
+                request.method,
+                request.path,
+            )
+        elif status >= 400:
+            app.logger.warning(
+                "Client error response %s for %s %s",
+                status,
+                request.method,
+                request.path,
+            )
+        else:
+            app.logger.debug(
+                "Completed request %s %s with status %s",
+                request.method,
+                request.path,
+                status,
+            )
+        return response
 
     @app.errorhandler(403)
     def forbidden(e):
-        return render_template('errors/403.html'), 403
+        app.logger.warning(
+            "Forbidden access attempted on %s %s: %s",
+            request.method,
+            request.path,
+            e,
+        )
+        try:
+            return render_template('errors/403.html'), 403
+        except TemplateNotFound:
+            return "Forbidden", 403
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(e):
-        return render_template('errors/csrf_error.html', reason=e.description), 400
+        app.logger.warning(
+            "CSRF error on %s %s: %s",
+            request.method,
+            request.path,
+            e.description,
+        )
+        try:
+            return render_template('errors/csrf_error.html', reason=e.description), 400
+        except TemplateNotFound:
+            return f"CSRF Error: {e.description}", 400
+
+    @app.errorhandler(Exception)
+    def handle_unexpected_error(e):
+        if isinstance(e, HTTPException):
+            if e.code >= 500:
+                app.logger.exception("HTTP exception triggered: %s", e)
+            return e
+
+        app.logger.exception("Unhandled exception encountered")
+        try:
+            return render_template('errors/500.html'), 500
+        except TemplateNotFound:
+            return "Internal Server Error", 500
 
     # Context processor to inject csrf_token into all templates
     @app.context_processor
