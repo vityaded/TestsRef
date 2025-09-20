@@ -705,6 +705,10 @@
         return false;
       }
 
+      if (expectedWord && expectedWord.isProperNoun) {
+        return spokenSegment.some((segment) => Boolean(segment && segment.length));
+      }
+
       const directMatch = variantSegments.every((segment, idx) => segment === spokenSegment[idx]);
       if (directMatch) {
         return true;
