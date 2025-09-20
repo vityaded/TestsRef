@@ -151,7 +151,9 @@
       recognitionSupported: false,
       recognitionRequested: false,
       recognitionActive: false,
-      isSpeaking: false
+      isSpeaking: false,
+      lastTranscriptTokens: [],
+      processedTokens: 0
     };
 
     const config = {
@@ -285,13 +287,29 @@
     const wordMetadata = wordElements.map((element, index) => {
       const raw = element.dataset.original || element.textContent || '';
       const normalized = normalizeWord(raw);
-      const segments = normalized.replace(/-/g, ' ').split(/\s+/).filter(Boolean);
+      const baseSegments = normalized.replace(/-/g, ' ').split(/\s+/).filter(Boolean);
+      const defaultSegments = baseSegments.length ? baseSegments : (normalized ? [normalized] : []);
+      const variants = [];
+      if (defaultSegments.length) {
+        variants.push(defaultSegments);
+      }
+      const contractionExpansion = contractionsMap.get(normalized);
+      if (contractionExpansion) {
+        const expansionSegments = contractionExpansion
+          .split(/\s+/)
+          .map((part) => normalizeWord(part))
+          .filter(Boolean);
+        if (expansionSegments.length && !variants.some((variant) => arraysEqual(variant, expansionSegments))) {
+          variants.push(expansionSegments);
+        }
+      }
       return {
         element,
         index,
         raw,
         normalized,
-        segments: segments.length ? segments : (normalized ? [normalized] : []),
+        segments: defaultSegments,
+        variants,
         isProperNoun: element.classList.contains('proper-noun'),
         isNonEnglish: element.classList.contains('non-english')
       };
@@ -559,6 +577,7 @@
       if (state.currentIndex >= totalWords) {
         return;
       }
+
       const tokens = transcript
         .split(/\s+/)
         .map((token) => token.trim())
@@ -573,43 +592,120 @@
         return;
       }
 
-      const currentWord = wordMetadata[state.currentIndex];
-      if (!currentWord || !currentWord.segments.length) {
-        moveToNextWord();
-        return;
-      }
+      const previousTokens = state.lastTranscriptTokens || [];
+      const prefixLength = previousTokens.length ? longestCommonPrefix(previousTokens, tokens) : 0;
+      let pointer = Math.min(state.processedTokens || 0, prefixLength);
+      const originalPointer = pointer;
+      let matchedWords = 0;
 
-      if (tokens.length < currentWord.segments.length) {
-        return;
-      }
+      while (state.currentIndex < totalWords) {
+        const currentWord = wordMetadata[state.currentIndex];
+        if (!currentWord) {
+          break;
+        }
 
-      const spokenSegment = tokens.slice(-currentWord.segments.length);
-      if (segmentsMatch(currentWord, spokenSegment)) {
+        if (!currentWord.segments.length) {
+          moveToNextWord();
+          continue;
+        }
+
+        const match = findWordMatch(currentWord, tokens, pointer);
+        if (!match) {
+          break;
+        }
+
+        pointer = match.end;
         acceptWord(currentWord);
-      } else {
-        registerIncorrectAttempt(currentWord);
+        matchedWords += 1;
+      }
+
+      state.lastTranscriptTokens = tokens;
+      state.processedTokens = pointer;
+
+      const unprocessedTokens = Math.max(0, tokens.length - originalPointer);
+
+      if (matchedWords === 0 && unprocessedTokens > 0) {
+        const currentWord = wordMetadata[state.currentIndex];
+        if (currentWord) {
+          const minRequiredTokens = getMinimumVariantLength(currentWord);
+          if (minRequiredTokens > 0 && unprocessedTokens >= minRequiredTokens) {
+            registerIncorrectAttempt(currentWord);
+          }
+        }
       }
     }
 
-    function segmentsMatch(expectedWord, spokenSegment) {
-      if (expectedWord.segments.length !== spokenSegment.length) {
+    function findWordMatch(word, tokens, startIndex) {
+      if (!word || !tokens.length) {
+        return null;
+      }
+
+      const variants = getVariantSegments(word);
+      if (!variants.length) {
+        return null;
+      }
+
+      for (let start = startIndex; start < tokens.length; start += 1) {
+        for (const variant of variants) {
+          if (!variant.length || start + variant.length > tokens.length) {
+            continue;
+          }
+          const candidate = tokens.slice(start, start + variant.length);
+          if (segmentsMatchVariant(word, variant, candidate)) {
+            return { start, end: start + variant.length };
+          }
+        }
+      }
+
+      return null;
+    }
+
+    function getVariantSegments(word) {
+      if (!word) {
+        return [];
+      }
+      if (Array.isArray(word.variants) && word.variants.length) {
+        return word.variants;
+      }
+      if (Array.isArray(word.segments) && word.segments.length) {
+        return [word.segments];
+      }
+      return [];
+    }
+
+    function getMinimumVariantLength(word) {
+      const variants = getVariantSegments(word);
+      if (!variants.length) {
+        return 0;
+      }
+      let minLength = Number.POSITIVE_INFINITY;
+      variants.forEach((variant) => {
+        if (variant.length) {
+          minLength = Math.min(minLength, variant.length);
+        }
+      });
+      return Number.isFinite(minLength) ? minLength : 0;
+    }
+
+    function segmentsMatchVariant(expectedWord, variantSegments, spokenSegment) {
+      if (!variantSegments.length || variantSegments.length !== spokenSegment.length) {
         return false;
       }
 
-      const directMatch = expectedWord.segments.every((segment, idx) => segment === spokenSegment[idx]);
+      const directMatch = variantSegments.every((segment, idx) => segment === spokenSegment[idx]);
       if (directMatch) {
         return true;
       }
 
-      const expectedPhrase = expectedWord.segments.join(' ').replace(/-/g, ' ').trim();
+      const expectedPhrase = variantSegments.join(' ').replace(/-/g, ' ').trim();
       const spokenPhrase = spokenSegment.join(' ').replace(/-/g, ' ').trim();
 
       if (areNumbersEquivalent(expectedPhrase, spokenPhrase)) {
         return true;
       }
 
-      if (expectedWord.segments.length === 1) {
-        const expected = expectedWord.segments[0];
+      if (variantSegments.length === 1) {
+        const expected = variantSegments[0];
         const spoken = spokenSegment[0];
         if (areSpellingVariants(expected, spoken)) {
           return true;
@@ -620,6 +716,28 @@
       }
 
       return false;
+    }
+
+    function longestCommonPrefix(a, b) {
+      if (!Array.isArray(a) || !Array.isArray(b)) {
+        return 0;
+      }
+      const limit = Math.min(a.length, b.length);
+      let index = 0;
+      while (index < limit && a[index] === b[index]) {
+        index += 1;
+      }
+      return index;
+    }
+
+    function arraysEqual(a, b) {
+      if (a === b) {
+        return true;
+      }
+      if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+        return false;
+      }
+      return a.every((value, index) => value === b[index]);
     }
 
     function areNumbersEquivalent(expectedPhrase, spokenPhrase) {
@@ -698,6 +816,8 @@
       currentWord.element.classList.add('skipped');
       state.currentIndex += 1;
       state.incorrectAttempts = 0;
+      state.lastTranscriptTokens = [];
+      state.processedTokens = 0;
       if (reason === 'user') {
         updateHelperMessage('Word skipped. You can review it later.');
       } else {
@@ -714,6 +834,8 @@
       setStatus('completed', 'Completed');
       updateHelperMessage('Excellent work! Continue when you are ready.');
       state.recognitionRequested = false;
+      state.lastTranscriptTokens = [];
+      state.processedTokens = 0;
       safeStopRecognition();
       updateControls();
       if (elements.nextBtn) {
@@ -728,6 +850,8 @@
       state.currentIndex = 0;
       state.incorrectAttempts = 0;
       state.recognitionRequested = false;
+      state.lastTranscriptTokens = [];
+      state.processedTokens = 0;
       safeStopRecognition();
       wordMetadata.forEach((word) => {
         word.element.classList.remove('current-word', 'incorrect', 'word-correct', 'skipped');
