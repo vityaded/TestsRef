@@ -153,7 +153,8 @@
       recognitionActive: false,
       isSpeaking: false,
       lastTranscriptTokens: [],
-      processedTokens: 0
+      processedTokens: 0,
+      displayTranscript: ''
     };
 
     const config = {
@@ -356,19 +357,31 @@
         if (!event.results || !event.results.length) {
           return;
         }
-        const result = event.results[event.results.length - 1];
-        if (!result || !result[0]) {
-          return;
+
+        let interimTranscript = '';
+        const startIndex = Number.isInteger(event.resultIndex) ? event.resultIndex : 0;
+
+        for (let index = startIndex; index < event.results.length; index += 1) {
+          const result = event.results[index];
+          if (!result || !result[0]) {
+            continue;
+          }
+
+          const transcript = result[0].transcript.trim();
+          if (!transcript) {
+            continue;
+          }
+
+          if (result.isFinal) {
+            state.displayTranscript = `${state.displayTranscript} ${transcript}`.trim();
+            handleTranscript(transcript.toLowerCase());
+          } else {
+            interimTranscript = transcript;
+          }
         }
-        const transcript = result[0].transcript.trim();
-        if (!transcript) {
-          return;
-        }
-        elements.recognizedText.textContent = transcript;
-        if (!result.isFinal) {
-          return;
-        }
-        handleTranscript(transcript.toLowerCase());
+
+        const combinedTranscript = `${state.displayTranscript} ${interimTranscript}`.trim();
+        elements.recognizedText.textContent = combinedTranscript;
       };
     } else {
       setStatus('unsupported', 'Unavailable');
@@ -852,7 +865,11 @@
       state.recognitionRequested = false;
       state.lastTranscriptTokens = [];
       state.processedTokens = 0;
+      state.displayTranscript = '';
       safeStopRecognition();
+      if (elements.recognizedText) {
+        elements.recognizedText.textContent = '';
+      }
       wordMetadata.forEach((word) => {
         word.element.classList.remove('current-word', 'incorrect', 'word-correct', 'skipped');
       });
