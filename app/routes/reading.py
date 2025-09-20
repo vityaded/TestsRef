@@ -19,8 +19,55 @@ reading_bp = Blueprint('reading', __name__, url_prefix='/reading')
 def reading_tasks():
     """Displays the list of available reading activities."""
     try:
-        activities = ReadingActivity.query.all()
-        return render_template('reading/reading_tasks.html', activities=activities)
+        activities = ReadingActivity.query.order_by(ReadingActivity.title.asc()).all()
+        progress_records = UserReadingProgress.query.filter_by(user_id=current_user.id).all()
+        progress_map = {record.activity_id: record for record in progress_records}
+
+        activity_cards = []
+        for activity in activities:
+            total_pages = len(activity.pages or [])
+            progress = progress_map.get(activity.id)
+            unlocked_pages = []
+
+            if progress and isinstance(progress.unlocked_pages, list):
+                for page_value in progress.unlocked_pages:
+                    try:
+                        page_number = int(page_value)
+                    except (TypeError, ValueError):
+                        continue
+                    unlocked_pages.append(page_number)
+
+            if total_pages > 0:
+                if 1 not in unlocked_pages:
+                    unlocked_pages.append(1)
+                unlocked_pages = sorted({page for page in unlocked_pages if page >= 1})
+                unlocked_pages = [page for page in unlocked_pages if page <= total_pages]
+            else:
+                unlocked_pages = []
+
+            unlocked_count = len(unlocked_pages)
+            effective_unlocked = min(unlocked_count, total_pages) if total_pages else 0
+            completion_ratio = 100 if total_pages == 0 else int(round((effective_unlocked / total_pages) * 100))
+            completed = total_pages > 0 and completion_ratio >= 100
+
+            if completed and total_pages:
+                next_page = total_pages
+            else:
+                next_page = unlocked_pages[-1] if unlocked_pages else 1
+            next_page = max(1, min(next_page, total_pages or 1))
+
+            activity_cards.append({
+                'activity': activity,
+                'total_pages': total_pages,
+                'pages_unlocked': effective_unlocked,
+                'pages_remaining': max(total_pages - effective_unlocked, 0),
+                'completion_ratio': completion_ratio,
+                'completed': completed,
+                'next_page': next_page
+            })
+
+        activity_cards.sort(key=lambda item: (item['activity'].title or '').lower())
+        return render_template('reading/reading_tasks.html', activity_cards=activity_cards)
     except Exception as e:
         print(f"ERROR in reading_tasks: {e}")
         flash("Error loading reading activities.", "danger")
