@@ -1,6 +1,8 @@
 from . import db
 from flask_login import UserMixin
 from datetime import datetime, timezone
+import hashlib
+import hmac
 # Import JSON type based on your database (using SQLite's here)
 from sqlalchemy.dialects.sqlite import JSON
 # Or use db.JSON if using PostgreSQL/MySQL:
@@ -24,8 +26,28 @@ class User(UserMixin, db.Model):
         self.password = generate_password_hash(password)
 
     def check_password(self, password):
-        from werkzeug.security import check_password_hash
-        return check_password_hash(self.password, password)
+        from werkzeug.security import check_password_hash, generate_password_hash
+
+        stored_password = self.password or ""
+
+        if stored_password.startswith('sha256$'):
+            try:
+                _, salt, hashval = stored_password.split('$', 2)
+            except ValueError:
+                return False
+
+            calculated_hash = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
+
+            if hmac.compare_digest(calculated_hash, hashval):
+                try:
+                    self.password = generate_password_hash(password, method="pbkdf2:sha256")
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                return True
+            return False
+
+        return check_password_hash(stored_password, password)
 
 class Book(db.Model):
     __tablename__ = 'book'  # Explicitly specify table name
