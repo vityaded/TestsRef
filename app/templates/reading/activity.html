@@ -374,10 +374,14 @@
 
           if (result.isFinal) {
             state.displayTranscript = `${state.displayTranscript} ${transcript}`.trim();
-            handleTranscript(transcript.toLowerCase());
+            handleTranscript(transcript.toLowerCase(), { isFinal: true });
           } else {
             interimTranscript = transcript;
           }
+        }
+
+        if (interimTranscript) {
+          handleTranscript(interimTranscript.toLowerCase(), { isFinal: false });
         }
 
         const combinedTranscript = `${state.displayTranscript} ${interimTranscript}`.trim();
@@ -586,12 +590,23 @@
       elements.helperMessage.textContent = message || '';
     }
 
-    function handleTranscript(transcript) {
+    function handleTranscript(transcript, options = {}) {
       if (state.currentIndex >= totalWords) {
         return;
       }
 
-      const tokens = transcript
+      if (typeof transcript !== 'string') {
+        return;
+      }
+
+      const normalizedTranscript = transcript.trim();
+      if (!normalizedTranscript) {
+        return;
+      }
+
+      const { isFinal = false } = options;
+
+      const tokens = normalizedTranscript
         .split(/\s+/)
         .map((token) => token.trim())
         .filter(Boolean)
@@ -637,7 +652,7 @@
 
       const unprocessedTokens = Math.max(0, tokens.length - originalPointer);
 
-      if (matchedWords === 0 && unprocessedTokens > 0) {
+      if (isFinal && matchedWords === 0 && unprocessedTokens > 0) {
         const currentWord = wordMetadata[state.currentIndex];
         if (currentWord) {
           const minRequiredTokens = getMinimumVariantLength(currentWord);
