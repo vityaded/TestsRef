@@ -27,11 +27,43 @@ def configure_logging(app):
     handlers = []
 
     if gunicorn_error_logger.handlers:
-        handlers = gunicorn_error_logger.handlers
+        handlers = list(gunicorn_error_logger.handlers)
     else:
         stream_handler = logging.StreamHandler(sys.stdout)
         stream_handler.setFormatter(formatter)
         handlers = [stream_handler]
+
+    def _handler_targets_console(handler):
+        if isinstance(handler, logging.StreamHandler):
+            target_stream = getattr(handler, "stream", None)
+            if target_stream in (sys.stdout, sys.stderr):
+                return True
+            try:
+                target_fileno = target_stream.fileno()
+            except Exception:
+                target_fileno = None
+
+            if target_fileno is not None:
+                stdout_fileno = None
+                stderr_fileno = None
+                try:
+                    stdout_fileno = sys.stdout.fileno()
+                except Exception:
+                    stdout_fileno = None
+                try:
+                    stderr_fileno = sys.stderr.fileno()
+                except Exception:
+                    stderr_fileno = None
+                return target_fileno in {stdout_fileno, stderr_fileno}
+        return False
+
+    has_console_handler = any(_handler_targets_console(handler) for handler in handlers)
+
+    if not has_console_handler:
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        console_handler.setLevel(log_level)
+        handlers.append(console_handler)
 
     app.logger.handlers = []
     for handler in handlers:
@@ -52,8 +84,8 @@ def configure_logging(app):
     root_logger.setLevel(log_level)
 
     gunicorn_access_logger = logging.getLogger("gunicorn.access")
-    if not gunicorn_access_logger.handlers:
-        for handler in handlers:
+    for handler in handlers:
+        if handler not in gunicorn_access_logger.handlers:
             gunicorn_access_logger.addHandler(handler)
 
     for handler in gunicorn_access_logger.handlers:
