@@ -1,6 +1,6 @@
 # Updated app/routes/reading.py with flag_modified
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
 from app.models import ReadingActivity, ReadingPage, UserReadingProgress
 from app import db
@@ -68,8 +68,10 @@ def reading_tasks():
 
         activity_cards.sort(key=lambda item: (item['activity'].title or '').lower())
         return render_template('reading/reading_tasks.html', activity_cards=activity_cards)
-    except Exception as e:
-        print(f"ERROR in reading_tasks: {e}")
+    except Exception:
+        current_app.logger.exception(
+            "reading.reading_tasks: failed to load activities",
+        )
         flash("Error loading reading activities.", "danger")
         return redirect(url_for('main.index'))
 
@@ -77,33 +79,68 @@ def reading_tasks():
 @login_required
 def reading_activity(activity_id, page_number):
     """Displays a specific page of a reading activity if unlocked."""
-    print(f"--- DEBUG: reading_activity - Loading page {page_number} for activity {activity_id} ---")
+    current_app.logger.debug(
+        "reading.reading_activity: loading page %s for activity %s",
+        page_number,
+        activity_id,
+    )
     try:
         activity = ReadingActivity.query.get_or_404(activity_id)
         page = ReadingPage.query.filter_by(activity_id=activity_id, page_number=page_number).first_or_404()
 
         progress = UserReadingProgress.query.filter_by(user_id=current_user.id, activity_id=activity_id).first()
         if not progress:
-            print(f"DEBUG: reading_activity - No progress found, creating...")
+            current_app.logger.debug(
+                "reading.reading_activity: no progress found for user %s activity %s; creating entry",
+                current_user.id,
+                activity_id,
+            )
             progress = UserReadingProgress(user_id=current_user.id, activity_id=activity_id, unlocked_pages=[1])
             db.session.add(progress)
             db.session.commit()
-            print("DEBUG: reading_activity - New progress committed.")
+            current_app.logger.debug(
+                "reading.reading_activity: created initial progress for user %s activity %s",
+                current_user.id,
+                activity_id,
+            )
 
         unlocked_pages = progress.unlocked_pages if isinstance(progress.unlocked_pages, list) else [1]
-        print(f"DEBUG: reading_activity - Fetched unlocked_pages: {unlocked_pages}")
+        current_app.logger.debug(
+            "reading.reading_activity: unlocked_pages=%s for user %s activity %s",
+            unlocked_pages,
+            current_user.id,
+            activity_id,
+        )
 
         if page_number not in unlocked_pages:
-            print(f"DEBUG: reading_activity - Page {page_number} NOT IN {unlocked_pages}. Redirecting.")
+            current_app.logger.debug(
+                "reading.reading_activity: page %s not unlocked for user %s (unlocked=%s)",
+                page_number,
+                current_user.id,
+                unlocked_pages,
+            )
             flash("You haven't unlocked this page yet.", "warning")
             highest_unlocked = max(unlocked_pages) if unlocked_pages else 1
+            current_app.logger.debug(
+                "reading.reading_activity: redirecting user %s to highest unlocked page %s",
+                current_user.id,
+                highest_unlocked,
+            )
             return redirect(url_for('reading.reading_activity', activity_id=activity_id, page_number=highest_unlocked))
 
-        print(f"DEBUG: reading_activity - Page {page_number} is unlocked. Rendering template.")
+        current_app.logger.debug(
+            "reading.reading_activity: page %s unlocked for user %s",
+            page_number,
+            current_user.id,
+        )
         return render_template('reading/activity.html', activity=activity, page=page, unlocked_pages=unlocked_pages)
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        print(f"ERROR in reading_activity: {e}")
+        current_app.logger.exception(
+            "reading.reading_activity: error loading page %s for activity %s",
+            page_number,
+            activity_id,
+        )
         flash("Error loading reading page.", "danger")
         return redirect(url_for('reading.reading_tasks'))
 
@@ -112,47 +149,81 @@ def reading_activity(activity_id, page_number):
 @login_required
 def unlock_page(activity_id, page_number):
     """API endpoint called by JavaScript to mark a page as unlocked."""
-    print(f"--- DEBUG: unlock_page - Attempting to unlock page {page_number} for activity {activity_id}, user {current_user.id} ---")
+    current_app.logger.debug(
+        "reading.unlock_page: attempting to unlock page %s for activity %s user %s",
+        page_number,
+        activity_id,
+        current_user.id,
+    )
     try:
         progress = UserReadingProgress.query.filter_by(user_id=current_user.id, activity_id=activity_id).first()
         if not progress:
-            print(f"DEBUG: unlock_page - Progress not found! Creating.")
+            current_app.logger.debug(
+                "reading.unlock_page: no progress found for user %s activity %s; creating entry",
+                current_user.id,
+                activity_id,
+            )
             progress = UserReadingProgress(user_id=current_user.id, activity_id=activity_id, unlocked_pages=[1])
             db.session.add(progress)
             unlocked_pages = progress.unlocked_pages if isinstance(progress.unlocked_pages, list) else [1]
         else:
             unlocked_pages = progress.unlocked_pages if isinstance(progress.unlocked_pages, list) else [1]
 
-        print(f"DEBUG: unlock_page - Current unlocked pages BEFORE change: {unlocked_pages}")
+        current_app.logger.debug(
+            "reading.unlock_page: unlocked pages before change=%s for user %s activity %s",
+            unlocked_pages,
+            current_user.id,
+            activity_id,
+        )
 
         if page_number not in unlocked_pages:
-            print(f"DEBUG: unlock_page - Page {page_number} not found. Appending.")
-            if not isinstance(unlocked_pages, list): unlocked_pages = [1] # Reset if data is bad
+            current_app.logger.debug(
+                "reading.unlock_page: adding page %s to unlocked list",
+                page_number,
+            )
+            if not isinstance(unlocked_pages, list):
+                unlocked_pages = [1]  # Reset if data is bad
             unlocked_pages.append(page_number)
             unlocked_pages.sort()
             progress.unlocked_pages = unlocked_pages
-            print(f"DEBUG: unlock_page - Unlocked list assigned: {progress.unlocked_pages}")
+            current_app.logger.debug(
+                "reading.unlock_page: unlocked list assigned=%s",
+                progress.unlocked_pages,
+            )
 
             # --- TELL SQLALCHEMY THE FIELD WAS MODIFIED ---
             flag_modified(progress, "unlocked_pages")
-            print("DEBUG: unlock_page - flag_modified called for 'unlocked_pages'.")
+            current_app.logger.debug(
+                "reading.unlock_page: flag_modified called for unlocked_pages",
+            )
             # ---------------------------------------------
 
             db.session.commit()
-            print(f"DEBUG: unlock_page - Commit successful for page {page_number}.")
+            current_app.logger.debug(
+                "reading.unlock_page: commit successful for page %s",
+                page_number,
+            )
 
             # Optional: Verify read after commit (for debugging)
             # verify_progress = UserReadingProgress.query.filter_by(user_id=current_user.id, activity_id=activity_id).first()
             # print(f"DEBUG: unlock_page - VERIFY Read after commit: {verify_progress.unlocked_pages if verify_progress else 'Not found'}")
 
         else:
-            print(f"DEBUG: unlock_page - Page {page_number} was already unlocked.")
+            current_app.logger.debug(
+                "reading.unlock_page: page %s already unlocked",
+                page_number,
+            )
 
         return jsonify({'success': True, 'unlocked': progress.unlocked_pages})
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        print(f"ERROR in unlock_page: {e}")
+        current_app.logger.exception(
+            "reading.unlock_page: error unlocking page %s for activity %s user %s",
+            page_number,
+            activity_id,
+            current_user.id,
+        )
         return jsonify({'success': False, 'error': 'Database error during unlock'}), 500
 
 
@@ -161,28 +232,59 @@ def unlock_page(activity_id, page_number):
 #@admin_required # Optional
 def create_activity():
     """Handles the creation of a new reading activity."""
-    # ... (Keep the create_activity function as it was in the previous correct version) ...
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
         content = request.form.get('content', '').strip()
         page_size_str = request.form.get('page_size', '100').strip()
+
         if not title or not content or not page_size_str.isdigit():
-             flash('Invalid input...', 'danger'); return render_template('reading/create_activity.html'), 400
+            flash('Invalid input...', 'danger')
+            return render_template('reading/create_activity.html'), 400
+
         page_size = int(page_size_str)
         if page_size <= 0:
-            flash('Words per page must be positive.', 'danger'); return render_template('reading/create_activity.html'), 400
+            flash('Words per page must be positive.', 'danger')
+            return render_template('reading/create_activity.html'), 400
+
         try:
             activity = ReadingActivity(title=title)
-            db.session.add(activity); db.session.flush()
-            words = content.split(); pages_data = [[]] if not words else [words[i:i + page_size] for i in range(0, len(words), page_size)]
+            db.session.add(activity)
+            db.session.flush()
+
+            words = content.split()
+            if not words:
+                pages_data = [[]]
+            else:
+                pages_data = [
+                    words[i:i + page_size]
+                    for i in range(0, len(words), page_size)
+                ]
+
             for idx, page_words in enumerate(pages_data):
                 page_content = ' '.join(page_words)
-                page = ReadingPage(content=page_content, page_number=idx + 1, activity_id=activity.id)
+                page = ReadingPage(
+                    content=page_content,
+                    page_number=idx + 1,
+                    activity_id=activity.id,
+                )
                 db.session.add(page)
+
             db.session.commit()
             flash('Reading activity created successfully!', 'success')
-            return redirect(url_for('reading.reading_activity', activity_id=activity.id, page_number=1))
-        except Exception as e:
-            db.session.rollback(); print(f"ERROR in create_activity POST: {e}"); flash("Error creating activity.", "danger"); return render_template('reading/create_activity.html'), 500
-    else: # GET
-        return render_template('reading/create_activity.html')
+            return redirect(
+                url_for(
+                    'reading.reading_activity',
+                    activity_id=activity.id,
+                    page_number=1,
+                )
+            )
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception(
+                "reading.create_activity: error creating activity '%s'",
+                title,
+            )
+            flash("Error creating activity.", "danger")
+            return render_template('reading/create_activity.html'), 500
+
+    return render_template('reading/create_activity.html')
