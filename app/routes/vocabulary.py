@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, current_app
 from flask_login import login_required, current_user
 from ..models import Vocabulary
 from ..forms import EditWordForm
@@ -131,12 +131,21 @@ def review():
         normalized_correct_answer = normalize_text(correct_answer)
 
         # Debugging statements
-        print(f"Review Stage: {review_stage}")
-        print(f"Question: '{word.translation if review_stage % 2 == 0 else word.word}'")
-        print(f"User Answer: '{user_answer}'")
-        print(f"Correct Answer: '{correct_answer}'")
-        print(f"Normalized User Answer: '{normalized_user_answer}'")
-        print(f"Normalized Correct Answer: '{normalized_correct_answer}'")
+        current_app.logger.debug(
+            "vocabulary.review: review_stage=%s question='%s'",
+            review_stage,
+            word.translation if review_stage % 2 == 0 else word.word,
+        )
+        current_app.logger.debug(
+            "vocabulary.review: user_answer='%s' correct_answer='%s'",
+            user_answer,
+            correct_answer,
+        )
+        current_app.logger.debug(
+            "vocabulary.review: normalized_user_answer='%s' normalized_correct_answer='%s'",
+            normalized_user_answer,
+            normalized_correct_answer,
+        )
 
         if normalized_user_answer == normalized_correct_answer:
             # Correct answer: increase the learning stage
