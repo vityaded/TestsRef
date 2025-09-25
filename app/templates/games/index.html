@@ -15,9 +15,20 @@
   <div class="list-group">
     {% if games %}
       {% for game in games %}
-        <a href="{{ url_for('games.play', game_name=game.id) }}" class="list-group-item list-group-item-action">
-          {{ game.name }}
-        </a>
+        <div class="list-group-item d-flex justify-content-between align-items-center flex-wrap">
+          <a href="{{ url_for('games.play', game_name=game.id) }}" class="font-weight-bold mb-2 mb-sm-0">
+            {{ game.name }}
+          </a>
+          {% if current_user.is_authenticated %}
+            <div class="d-flex align-items-center">
+              <a href="{{ url_for('games.edit_game', game_name=game.id) }}" class="btn btn-outline-secondary btn-sm">Edit</a>
+              <form method="post" action="{{ url_for('games.delete_game', game_name=game.id) }}" class="ml-2" onsubmit="return confirm('Are you sure you want to delete this game?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+              </form>
+            </div>
+          {% endif %}
+        </div>
       {% endfor %}
     {% else %}
       <p class="text-center">No games found!</p>
