@@ -1,0 +1,24 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Edit Game{% endblock %}
+
+{% block content %}
+  <div class="my-4">
+    <h1 class="mb-4">Edit Game</h1>
+    <form method="post" action="{{ url_for('games.edit_game', game_name=original_game_name) }}">
+      {{ form.hidden_tag() }}
+      <div class="form-group">
+        {{ form.name.label(class="form-label") }}
+        {{ form.name(class="form-control", placeholder="Enter game name") }}
+      </div>
+      <div class="form-group">
+        {{ form.content.label(class="form-label") }}
+        {{ form.content(class="form-control", rows=18, placeholder="Update game HTML here") }}
+      </div>
+      <div class="d-flex justify-content-between">
+        <a href="{{ url_for('games.index') }}" class="btn btn-secondary">Cancel</a>
+        {{ form.submit(class="btn btn-primary") }}
+      </div>
+    </form>
+  </div>
+{% endblock %}

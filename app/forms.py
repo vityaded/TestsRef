@@ -1,5 +1,12 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, TextAreaField, IntegerField, BooleanField
+from wtforms import (
+    StringField,
+    PasswordField,
+    SubmitField,
+    TextAreaField,
+    IntegerField,
+    BooleanField,
+)
 from wtforms.validators import DataRequired, Length, NumberRange, Optional
 
 class SignupForm(FlaskForm):
@@ -26,6 +33,11 @@ class AddGameForm(FlaskForm):
     name = StringField('Game Name', validators=[DataRequired(), Length(min=1, max=150)])
     content = TextAreaField('Game HTML', validators=[DataRequired()])
     submit = SubmitField('Save Game')
+
+class EditGameForm(FlaskForm):
+    name = StringField('Game Name', validators=[DataRequired(), Length(min=1, max=150)])
+    content = TextAreaField('Game HTML', validators=[DataRequired()])
+    submit = SubmitField('Update Game')
 
 class EditTestForm(FlaskForm):
     name = StringField('Test Name', validators=[DataRequired(), Length(min=1, max=150)])

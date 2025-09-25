@@ -3,11 +3,20 @@
 import os
 
 import jinja2
-from flask import Blueprint, render_template, current_app, abort, url_for, flash, redirect
+from flask import (
+    Blueprint,
+    render_template,
+    current_app,
+    abort,
+    url_for,
+    flash,
+    redirect,
+    request,
+)
 from flask_login import login_required  # Add if games require login
 from werkzeug.utils import secure_filename
 
-from app.forms import AddGameForm
+from app.forms import AddGameForm, EditGameForm
 
 # Define the blueprint
 games_bp = Blueprint('games', __name__, url_prefix='/games')
@@ -167,6 +176,98 @@ def add_game():
         for field, errors in form.errors.items():
             for error in errors:
                 flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
+
+    return redirect(url_for('games.index'))
+
+
+def _get_game_file_path(game_name: str) -> str:
+    games_dir = os.path.join(current_app.root_path, 'templates', 'games')
+    return os.path.join(games_dir, f"{game_name}.html")
+
+
+@games_bp.route('/edit/<string:game_name>', methods=['GET', 'POST'])
+@login_required
+def edit_game(game_name):
+    """Updates an existing game template and optionally renames it."""
+    file_path = _get_game_file_path(game_name)
+
+    if not os.path.exists(file_path):
+        abort(404)
+
+    form = EditGameForm()
+
+    if request.method == 'GET':
+        try:
+            with open(file_path, 'r', encoding='utf-8') as game_file:
+                form.name.data = game_name
+                form.content.data = game_file.read()
+        except OSError:
+            current_app.logger.exception(
+                'Failed to read game template %s for editing', file_path
+            )
+            flash('Could not load the game for editing. Please try again later.', 'danger')
+            return redirect(url_for('games.index'))
+
+    if form.validate_on_submit():
+        new_name = form.name.data.strip()
+        sanitized_name = secure_filename(new_name).lower()
+
+        if not sanitized_name:
+            flash('Invalid game name. Please use letters, numbers, or underscores.', 'danger')
+            return render_template('games/edit_game.html', form=form, original_game_name=game_name)
+
+        new_file_path = _get_game_file_path(sanitized_name)
+
+        if sanitized_name != game_name and os.path.exists(new_file_path):
+            flash('A game with this name already exists. Please choose another name.', 'danger')
+            return render_template('games/edit_game.html', form=form, original_game_name=game_name)
+
+        try:
+            target_path = new_file_path if sanitized_name != game_name else file_path
+            with open(target_path, 'w', encoding='utf-8') as game_file:
+                game_file.write(form.content.data)
+
+            if sanitized_name != game_name:
+                os.remove(file_path)
+        except OSError as exc:
+            current_app.logger.exception('Failed to update game template %s: %s', file_path, exc)
+            if sanitized_name != game_name and os.path.exists(target_path):
+                try:
+                    os.remove(target_path)
+                except OSError:
+                    current_app.logger.exception(
+                        'Failed to remove partially written game template %s', target_path
+                    )
+            flash('Could not save the game. Please try again later.', 'danger')
+            return render_template('games/edit_game.html', form=form, original_game_name=game_name)
+
+        flash('Game updated successfully!', 'success')
+        return redirect(url_for('games.play', game_name=sanitized_name))
+
+    if request.method == 'POST':
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
+
+    return render_template('games/edit_game.html', form=form, original_game_name=game_name)
+
+
+@games_bp.route('/delete/<string:game_name>', methods=['POST'])
+@login_required
+def delete_game(game_name):
+    """Deletes a saved game template."""
+    file_path = _get_game_file_path(game_name)
+
+    if not os.path.exists(file_path):
+        abort(404)
+
+    try:
+        os.remove(file_path)
+    except OSError:
+        current_app.logger.exception('Failed to delete game template %s', file_path)
+        flash('Could not delete the game. Please try again later.', 'danger')
+    else:
+        flash('Game deleted successfully.', 'success')
 
     return redirect(url_for('games.index'))
 
