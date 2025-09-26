@@ -22,6 +22,16 @@
           {% if current_user.is_authenticated %}
             <div class="d-flex align-items-center">
               <a href="{{ url_for('games.edit_game', game_name=game.id) }}" class="btn btn-outline-secondary btn-sm">Edit</a>
+              <button
+                type="button"
+                class="btn btn-outline-info btn-sm ml-2"
+                data-toggle="modal"
+                data-target="#gameQrModal"
+                data-game-url="{{ url_for('games.play', game_name=game.id, _external=True) }}"
+                data-game-name="{{ game.name }}"
+              >
+                Show QR
+              </button>
               <form method="post" action="{{ url_for('games.delete_game', game_name=game.id) }}" class="ml-2" onsubmit="return confirm('Are you sure you want to delete this game?');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                 <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
@@ -67,4 +77,75 @@
     </div>
   {% endif %}
 
+  <div class="modal fade" id="gameQrModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content text-white bg-dark">
+        <div class="modal-header border-0">
+          <h5 class="modal-title">Join <span id="gameQrTitle"></span></h5>
+          <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body d-flex flex-column justify-content-center align-items-center">
+          <div id="gameQrContainer" class="d-flex justify-content-center align-items-center w-100"></div>
+          <a id="gameQrLink" class="mt-4 text-info" href="#" target="_blank" rel="noopener"></a>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-light" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-J7L8r/3sGzdh0dX8GZFODdgNpTi27C/7fyqCkCmZomYuoFkWDXLI4sdAl4kzbIRbkIuAeGHGZ0nJMn2JvoXa0A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
+    (function ($) {
+      var modal = $('#gameQrModal');
+      modal.on('show.bs.modal', function (event) {
+        var button = $(event.relatedTarget);
+        var url = button.data('game-url');
+        var name = button.data('game-name');
+        $('#gameQrTitle').text(name);
+        var container = document.getElementById('gameQrContainer');
+        container.innerHTML = '';
+        new QRCode(container, {
+          text: url,
+          width: 512,
+          height: 512,
+          colorDark: '#ffffff',
+          colorLight: '#000000',
+        });
+        $('#gameQrLink').attr('href', url).text(url);
+      });
+
+      modal.on('hidden.bs.modal', function () {
+        document.getElementById('gameQrContainer').innerHTML = '';
+        $('#gameQrLink').attr('href', '').text('');
+        $('#gameQrTitle').text('');
+      });
+    })(jQuery);
+  </script>
+{% endblock %}
+
+{% block styles %}
+  {{ super() }}
+  <style>
+    #gameQrModal .modal-dialog {
+      max-width: 100vw;
+      margin: 0;
+    }
+
+    #gameQrModal .modal-content {
+      border-radius: 0;
+      min-height: 100vh;
+    }
+
+    #gameQrContainer {
+      min-height: 60vh;
+    }
+  </style>
 {% endblock %}
