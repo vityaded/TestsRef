@@ -29,6 +29,7 @@
                 data-target="#gameQrModal"
                 data-game-url="{{ url_for('games.play', game_name=game.id, _external=True) }}"
                 data-game-name="{{ game.name }}"
+                data-qr-url="{{ url_for('games.game_qr_code', game_name=game.id) }}"
               >
                 Show QR
               </button>
@@ -87,7 +88,9 @@
           </button>
         </div>
         <div class="modal-body d-flex flex-column justify-content-center align-items-center">
-          <div id="gameQrContainer" class="d-flex justify-content-center align-items-center w-100"></div>
+          <div class="d-flex justify-content-center align-items-center w-100">
+            <img id="gameQrImage" class="img-fluid" alt="" />
+          </div>
           <a id="gameQrLink" class="mt-4 text-info" href="#" target="_blank" rel="noopener"></a>
         </div>
         <div class="modal-footer border-0">
@@ -101,29 +104,30 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-J7L8r/3sGzdh0dX8GZFODdgNpTi27C/7fyqCkCmZomYuoFkWDXLI4sdAl4kzbIRbkIuAeGHGZ0nJMn2JvoXa0A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script>
     (function ($) {
       var modal = $('#gameQrModal');
+      var qrImage = $('#gameQrImage');
+
       modal.on('show.bs.modal', function (event) {
         var button = $(event.relatedTarget);
         var url = button.data('game-url');
         var name = button.data('game-name');
+        var qrUrl = button.data('qr-url');
+
         $('#gameQrTitle').text(name);
-        var container = document.getElementById('gameQrContainer');
-        container.innerHTML = '';
-        new QRCode(container, {
-          text: url,
-          width: 512,
-          height: 512,
-          colorDark: '#ffffff',
-          colorLight: '#000000',
-        });
+
+        if (qrUrl) {
+          qrImage.attr('src', qrUrl + '?_=' + new Date().getTime());
+          qrImage.attr('alt', 'QR code for ' + name);
+        } else {
+          qrImage.attr('src', '').attr('alt', '');
+        }
         $('#gameQrLink').attr('href', url).text(url);
       });
 
       modal.on('hidden.bs.modal', function () {
-        document.getElementById('gameQrContainer').innerHTML = '';
+        qrImage.attr('src', '').attr('alt', '');
         $('#gameQrLink').attr('href', '').text('');
         $('#gameQrTitle').text('');
       });
@@ -144,8 +148,8 @@
       min-height: 100vh;
     }
 
-    #gameQrContainer {
-      min-height: 60vh;
+    #gameQrImage {
+      max-height: 60vh;
     }
   </style>
 {% endblock %}
