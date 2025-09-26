@@ -1,8 +1,10 @@
 # Corrected app/routes/games.py using current_app.root_path
 
+import io
 import os
 
 import jinja2
+import segno
 from flask import (
     Blueprint,
     render_template,
@@ -12,6 +14,7 @@ from flask import (
     flash,
     redirect,
     request,
+    send_file,
 )
 from flask_login import login_required  # Add if games require login
 from werkzeug.utils import secure_filename
@@ -270,6 +273,31 @@ def delete_game(game_name):
         flash('Game deleted successfully.', 'success')
 
     return redirect(url_for('games.index'))
+
+
+@games_bp.route('/<string:game_name>/qr.png')
+def game_qr_code(game_name: str):
+    """Generates a QR code image for the requested game."""
+    file_path = _get_game_file_path(game_name)
+
+    if not os.path.exists(file_path):
+        abort(404)
+
+    game_url = url_for('games.play', game_name=game_name, _external=True)
+    qr = segno.make(game_url, error='m')
+
+    buffer = io.BytesIO()
+    qr.save(
+        buffer,
+        kind='png',
+        scale=10,
+        dark='#000000',
+        light='#ffffff',
+    )
+    buffer.seek(0)
+
+    return send_file(buffer, mimetype='image/png')
+
 
 @games_bp.route('/<string:game_name>')
 #@login_required
