@@ -39,6 +39,12 @@ class EditGameForm(FlaskForm):
     content = TextAreaField('Game HTML', validators=[DataRequired()])
     submit = SubmitField('Update Game')
 
+
+class CreateJeopardyForm(FlaskForm):
+    name = StringField('Jeopardy Name', validators=[DataRequired(), Length(min=1, max=150)])
+    content = TextAreaField('Questions and Answers', validators=[DataRequired()])
+    submit = SubmitField('Create Jeopardy')
+
 class EditTestForm(FlaskForm):
     name = StringField('Test Name', validators=[DataRequired(), Length(min=1, max=150)])
     time_limit = IntegerField('Time Limit (minutes)', validators=[Optional(), NumberRange(min=1)])
