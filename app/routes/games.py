@@ -3,6 +3,7 @@
 import io
 import os
 
+import csv
 import jinja2
 import segno
 from flask import (
@@ -19,7 +20,7 @@ from flask import (
 from flask_login import login_required  # Add if games require login
 from werkzeug.utils import secure_filename
 
-from app.forms import AddGameForm, EditGameForm
+from app.forms import AddGameForm, CreateJeopardyForm, EditGameForm
 
 # Define the blueprint
 games_bp = Blueprint('games', __name__, url_prefix='/games')
@@ -138,8 +139,14 @@ def index():
     """Displays the list of available games."""
     current_app.logger.debug("games.index: route called")
     available_games = get_game_templates()
-    form = AddGameForm()
-    return render_template('games/index.html', games=available_games, form=form)
+    add_game_form = AddGameForm()
+    jeopardy_form = CreateJeopardyForm()
+    return render_template(
+        'games/index.html',
+        games=available_games,
+        add_game_form=add_game_form,
+        jeopardy_form=jeopardy_form,
+    )
 
 @games_bp.route('/add', methods=['POST'])
 @login_required
@@ -181,6 +188,98 @@ def add_game():
                 flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
 
     return redirect(url_for('games.index'))
+
+
+def _parse_jeopardy_content(raw_text: str):
+    reader = csv.reader(io.StringIO(raw_text))
+    categories = []
+    entries = {}
+
+    for line_number, row in enumerate(reader, start=1):
+        if not row or all(not cell.strip() for cell in row):
+            continue
+
+        if len(row) != 4:
+            raise ValueError(f"Line {line_number}: expected 4 values (category, value, question, answer).")
+
+        category, value_text, question, answer = [cell.strip() for cell in row]
+
+        if not category or not value_text or not question or not answer:
+            raise ValueError(f"Line {line_number}: all fields (category, value, question, answer) are required.")
+
+        try:
+            value = int(value_text)
+        except ValueError:
+            raise ValueError(f"Line {line_number}: value should be a number.")
+
+        if category not in entries:
+            categories.append(category)
+            entries[category] = []
+
+        entries[category].append({'value': value, 'question': question, 'answer': answer})
+
+    if not categories:
+        raise ValueError('No valid questions were provided.')
+
+    for category in categories:
+        entries[category] = sorted(entries[category], key=lambda item: item['value'])
+
+    return categories, entries
+
+
+@games_bp.route('/create-jeopardy', methods=['POST'])
+@login_required
+def create_jeopardy():
+    """Creates a Jeopardy-style game from pasted CSV-like content."""
+    form = CreateJeopardyForm()
+
+    if not form.validate_on_submit():
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
+        return redirect(url_for('games.index'))
+
+    sanitized_name = secure_filename(form.name.data.strip()).lower()
+
+    if not sanitized_name:
+        flash('Invalid game name. Please use letters, numbers, or underscores.', 'danger')
+        return redirect(url_for('games.index'))
+
+    file_path = _get_game_file_path(sanitized_name)
+
+    if os.path.exists(file_path):
+        flash('A game with this name already exists. Please choose another name.', 'danger')
+        return redirect(url_for('games.index'))
+
+    try:
+        categories, entries = _parse_jeopardy_content(form.content.data)
+    except ValueError as exc:  # pragma: no cover - input validation
+        flash(str(exc), 'danger')
+        return redirect(url_for('games.index'))
+
+    max_rows = max((len(items) for items in entries.values()), default=0)
+
+    html_content = render_template(
+        'game_templates/jeopardy.html',
+        title=form.name.data.strip(),
+        categories=categories,
+        entries=entries,
+        max_rows=max_rows,
+    )
+
+    try:
+        games_dir = os.path.join(current_app.root_path, 'templates', 'games')
+        os.makedirs(games_dir, exist_ok=True)
+
+        with open(file_path, 'w', encoding='utf-8') as game_file:
+            game_file.write(html_content)
+    except OSError as exc:
+        current_app.logger.exception('Failed to create jeopardy template %s: %s', file_path, exc)
+        flash('Could not save the Jeopardy game. Please try again later.', 'danger')
+        return redirect(url_for('games.index'))
+
+    flash('Jeopardy game created successfully!', 'success')
+    return redirect(url_for('games.play', game_name=sanitized_name))
 
 
 def _get_game_file_path(game_name: str) -> str:
