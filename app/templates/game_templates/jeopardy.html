@@ -2385,24 +2385,25 @@ function mini(){
 <body>
 
 <div id="gameplay">
-  <div class="grid grid-play" style="height:100vh;" role="table" aria-label="Game Board">
-    <div class="grid-row grid-row-cats" role="row">
-      {% for category in categories %}
-      <div class="grid-cell" data-row="0" data-col="{{ loop.index0 }}">
-        <div class="cell"><div class="cell-inner cat-cell" role="columnheader">{{ category }}</div></div>
+    <div class="grid grid-play" style="height:100vh;" role="table" aria-label="Game Board">
+      <div class="grid-row grid-row-cats" role="row">
+        {% for category in categories %}
+        <div class="grid-cell" data-row="0" data-col="{{ loop.index0 }}">
+          <div class="cell"><div class="cell-inner cat-cell" role="columnheader">{{ category }}</div></div>
+        </div>
+        {% endfor %}
       </div>
-      {% endfor %}
-    </div>
 
-    {% for value in values %}
-    <div class="grid-row grid-row-questions{% if loop.first %} grid-first-row{% endif %}{% if loop.last %} grid-last-row{% endif %}" role="row">
-      {% for category in categories %}
-      {% set cell = (board.get(category) or {}).get(value) %}
-      <div class="cell-group grid-cell{% if not cell %} inert{% endif %}" role="cell" id="cell-{{ value }}-{{ loop.index0 }}" tabindex="0" data-row="{{ loop.parent.index }}" data-col="{{ loop.index0 }}" aria-label="{{ value }}"{% if not cell %} aria-disabled="true"{% endif %}>
-        <div class="cell points">
-          <div class="cell-inner" data-category="{{ category }}">{{ value }}</div>
-          <div class="front answer" tabindex="0">{% if cell %}{{ cell.question }}{% else %}&nbsp;{% endif %}</div>
-          <div class="back question" tabindex="0">{% if cell %}{{ cell.answer }}{% else %}&nbsp;{% endif %}</div>
+      {% for value in values %}
+      {% set row_index = loop.index %}
+      <div class="grid-row grid-row-questions{% if loop.first %} grid-first-row{% endif %}{% if loop.last %} grid-last-row{% endif %}" role="row">
+        {% for category in categories %}
+        {% set cell = (board.get(category) or {}).get(value) %}
+        <div class="cell-group grid-cell{% if not cell %} inert{% endif %}" role="cell" id="cell-{{ value }}-{{ loop.index0 }}" tabindex="0" data-row="{{ row_index }}" data-col="{{ loop.index0 }}" aria-label="{{ value }}"{% if not cell %} aria-disabled="true"{% endif %}>
+          <div class="cell points">
+            <div class="cell-inner" data-category="{{ category }}">{{ value }}</div>
+            <div class="front answer" tabindex="0">{% if cell %}{{ cell.question }}{% else %}&nbsp;{% endif %}</div>
+            <div class="back question" tabindex="0">{% if cell %}{{ cell.answer }}{% else %}&nbsp;{% endif %}</div>
         </div>
       </div>
       {% endfor %}
