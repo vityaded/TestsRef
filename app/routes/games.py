@@ -2,6 +2,7 @@
 
 import io
 import os
+import re
 
 import csv
 import jinja2
@@ -203,9 +204,92 @@ def add_game():
 @games_bp.route('/create-text-quest', methods=['POST'])
 @login_required
 def create_text_quest():
-    """Creates a new text quest using the provided HTML."""
+    """Creates a new text quest using the game_test3 blueprint and pasted data blocks."""
     form = CreateTextQuestForm()
-    return _handle_game_creation(form, 'Text quest created successfully!')
+
+    if not form.validate_on_submit():
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
+        return redirect(url_for('games.index'))
+
+    game_name = form.name.data.strip()
+    sanitized_name = secure_filename(game_name).lower()
+
+    if not sanitized_name:
+        flash('Invalid game name. Please use letters, numbers, or underscores.', 'danger')
+        return redirect(url_for('games.index'))
+
+    games_dir = os.path.join(current_app.root_path, 'templates', 'games')
+    os.makedirs(games_dir, exist_ok=True)
+
+    file_name = f"{sanitized_name}.html"
+    file_path = os.path.join(games_dir, file_name)
+
+    if os.path.exists(file_path):
+        flash('A game with this name already exists. Please choose another name.', 'danger')
+        return redirect(url_for('games.index'))
+
+    template_path = os.path.join(games_dir, 'game_test3.html')
+
+    try:
+        with open(template_path, 'r', encoding='utf-8') as template_file:
+            base_template = template_file.read()
+    except OSError as exc:
+        current_app.logger.exception('Failed to read base text quest template: %s', exc)
+        flash('Could not load the base text quest template. Please contact support.', 'danger')
+        return redirect(url_for('games.index'))
+
+    user_content = form.content.data
+
+    block_patterns = {
+        'gameData': re.compile(r"const\s+gameData\s*=\s*\{.*?\};\s*//\s*End of gameData", re.DOTALL),
+        'vocabulary': re.compile(r"const\s+vocabulary\s*=\s*\[.*?\];", re.DOTALL),
+        'vocabTranslations': re.compile(r"const\s+vocabTranslations\s*=\s*\{.*?\};", re.DOTALL),
+    }
+
+    extracted_blocks = {}
+
+    try:
+        for label, pattern in block_patterns.items():
+            match = pattern.search(user_content)
+            if not match:
+                raise ValueError(f"Could not find '{label}' block in the provided content.")
+            extracted_blocks[label] = match.group(0).strip()
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('games.index'))
+
+    replacement_targets = {
+        'gameData': block_patterns['gameData'],
+        'vocabulary': block_patterns['vocabulary'],
+        'vocabTranslations': block_patterns['vocabTranslations'],
+    }
+
+    updated_html = base_template
+
+    try:
+        for label, pattern in replacement_targets.items():
+            updated_html, replacements = pattern.subn(
+                lambda _: extracted_blocks[label], updated_html, count=1
+            )
+            if replacements == 0:
+                raise ValueError(f"Could not replace '{label}' in the base template.")
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('games.index'))
+
+    try:
+        with open(file_path, 'w', encoding='utf-8') as game_file:
+            game_file.write(updated_html)
+    except OSError as exc:
+        current_app.logger.exception('Failed to create text quest %s: %s', file_name, exc)
+        flash('Could not save the text quest. Please try again later.', 'danger')
+    else:
+        flash('Text quest created successfully!', 'success')
+        return redirect(url_for('games.play', game_name=sanitized_name))
+
+    return redirect(url_for('games.index'))
 
 
 def _parse_jeopardy_content(raw_text: str):
