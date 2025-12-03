@@ -136,9 +136,13 @@
               </div>
               <div class="form-group">
                 {{ text_quest_form.content.label(class="form-label") }}
-                {{ text_quest_form.content(class="form-control", rows=12) }}
+                {{ text_quest_form.content(
+                  class="form-control",
+                  rows=12,
+                  placeholder="Paste your gameData, vocabulary, and translation blocks here"
+                ) }}
                 <small class="form-text text-muted">
-                  Use the exact structure from <code>game_test3.html</code>. Replace the provided gameData and vocabulary blocks with your new content in the same format before saving.
+                  Paste only the sections for <code>gameData</code>, <code>vocabulary</code>, and <code>vocabTranslations</code> when creating a new quest. The field is blank by default so you can add your own content.
                 </small>
               </div>
             </div>
