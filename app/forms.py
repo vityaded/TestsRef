@@ -34,6 +34,13 @@ class AddGameForm(FlaskForm):
     content = TextAreaField('Game HTML', validators=[DataRequired()])
     submit = SubmitField('Save Game')
 
+
+class CreateTextQuestForm(FlaskForm):
+    name = StringField('Text Quest Name', validators=[DataRequired(), Length(min=1, max=150)])
+    content = TextAreaField('Text Quest HTML', validators=[DataRequired()])
+    submit = SubmitField('Create Text Quest')
+
+
 class EditGameForm(FlaskForm):
     name = StringField('Game Name', validators=[DataRequired(), Length(min=1, max=150)])
     content = TextAreaField('Game HTML', validators=[DataRequired()])

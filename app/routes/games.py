@@ -20,7 +20,12 @@ from flask import (
 from flask_login import login_required  # Add if games require login
 from werkzeug.utils import secure_filename
 
-from app.forms import AddGameForm, CreateJeopardyForm, EditGameForm
+from app.forms import (
+    AddGameForm,
+    CreateJeopardyForm,
+    CreateTextQuestForm,
+    EditGameForm,
+)
 
 # Define the blueprint
 games_bp = Blueprint('games', __name__, url_prefix='/games')
@@ -141,19 +146,33 @@ def index():
     available_games = get_game_templates()
     add_game_form = AddGameForm()
     jeopardy_form = CreateJeopardyForm()
+    text_quest_form = CreateTextQuestForm()
+
+    text_quest_template = ""
+    template_path = os.path.join(
+        current_app.root_path, 'templates', 'games', 'game_test3.html'
+    )
+    try:
+        with open(template_path, 'r', encoding='utf-8') as template_file:
+            text_quest_template = template_file.read()
+    except OSError:
+        current_app.logger.exception(
+            "games.index: could not read text quest template from %s", template_path
+        )
+
+    if not text_quest_form.content.data:
+        text_quest_form.content.data = text_quest_template
+
     return render_template(
         'games/index.html',
         games=available_games,
         add_game_form=add_game_form,
         jeopardy_form=jeopardy_form,
+        text_quest_form=text_quest_form,
+        text_quest_template=text_quest_template,
     )
 
-@games_bp.route('/add', methods=['POST'])
-@login_required
-def add_game():
-    """Creates a new game template from the provided HTML content."""
-    form = AddGameForm()
-
+def _handle_game_creation(form, success_message):
     if form.validate_on_submit():
         game_name = form.name.data.strip()
         html_content = form.content.data
@@ -179,15 +198,30 @@ def add_game():
             current_app.logger.exception('Failed to create game template %s: %s', file_name, exc)
             flash('Could not save the game. Please try again later.', 'danger')
         else:
-            flash('Game added successfully!', 'success')
+            flash(success_message, 'success')
             return redirect(url_for('games.play', game_name=sanitized_name))
-
     else:
         for field, errors in form.errors.items():
             for error in errors:
                 flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
 
     return redirect(url_for('games.index'))
+
+
+@games_bp.route('/add', methods=['POST'])
+@login_required
+def add_game():
+    """Creates a new game template from the provided HTML content."""
+    form = AddGameForm()
+    return _handle_game_creation(form, 'Game added successfully!')
+
+
+@games_bp.route('/create-text-quest', methods=['POST'])
+@login_required
+def create_text_quest():
+    """Creates a new text quest using the provided HTML."""
+    form = CreateTextQuestForm()
+    return _handle_game_creation(form, 'Text quest created successfully!')
 
 
 def _parse_jeopardy_content(raw_text: str):

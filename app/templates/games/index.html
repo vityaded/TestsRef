@@ -10,6 +10,9 @@
         <button type="button" class="btn btn-outline-light" data-toggle="modal" data-target="#jeopardyModal">
           Create Jeopardy
         </button>
+        <button type="button" class="btn btn-outline-success" data-toggle="modal" data-target="#textQuestModal">
+          Create Text Quest
+        </button>
         <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#addGameModal">
           Add Game
         </button>
@@ -110,6 +113,38 @@
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
               {{ jeopardy_form.submit(class="btn btn-primary") }}
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="modal fade" id="textQuestModal" tabindex="-1" role="dialog" aria-labelledby="textQuestModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="textQuestModalLabel">Create Text Quest</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <form method="post" action="{{ url_for('games.create_text_quest') }}">
+            <div class="modal-body">
+              {{ text_quest_form.hidden_tag() }}
+              <div class="form-group">
+                {{ text_quest_form.name.label(class="form-label") }}
+                {{ text_quest_form.name(class="form-control", placeholder="Enter text quest name") }}
+              </div>
+              <div class="form-group">
+                {{ text_quest_form.content.label(class="form-label") }}
+                {{ text_quest_form.content(class="form-control", rows=12) }}
+                <small class="form-text text-muted">
+                  Use the exact structure from <code>game_test3.html</code>. Replace the provided gameData and vocabulary blocks with your new content in the same format before saving.
+                </small>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+              {{ text_quest_form.submit(class="btn btn-success") }}
             </div>
           </form>
         </div>
