@@ -148,28 +148,12 @@ def index():
     jeopardy_form = CreateJeopardyForm()
     text_quest_form = CreateTextQuestForm()
 
-    text_quest_template = ""
-    template_path = os.path.join(
-        current_app.root_path, 'templates', 'games', 'game_test3.html'
-    )
-    try:
-        with open(template_path, 'r', encoding='utf-8') as template_file:
-            text_quest_template = template_file.read()
-    except OSError:
-        current_app.logger.exception(
-            "games.index: could not read text quest template from %s", template_path
-        )
-
-    if not text_quest_form.content.data:
-        text_quest_form.content.data = text_quest_template
-
     return render_template(
         'games/index.html',
         games=available_games,
         add_game_form=add_game_form,
         jeopardy_form=jeopardy_form,
         text_quest_form=text_quest_form,
-        text_quest_template=text_quest_template,
     )
 
 def _handle_game_creation(form, success_message):
