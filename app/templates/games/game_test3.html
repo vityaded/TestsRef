@@ -420,6 +420,7 @@ let currentChoices = []; // Holds the {text, nextScene} objects for the current 
 let isMemoryCheckPhase = false; // Is the player currently supposed to recall the English text?
 let isChoiceSpeakingPhase = false; // Is the player supposed to speak their choice?
 let originalEnglishTextForMemoryCheck = ""; // Stores formatted EN text for recall comparison/display
+let formattedEnglishSceneText = ""; // Stores the English text shown to the user (choice phase)
 let formattedUkrainianTextForMemoryCheck = "";// Stores formatted UA text to show during recall
 let memoryCheckPassed = false; // Did the player succeed in the last memory check?
 let ttsUnlocked = false; // Has the user interaction unlocked text-to-speech?
@@ -984,7 +985,7 @@ function processMemoryCheckResult(transcript) {
         feedbackArea.className = 'text-center font-semibold mt-2 min-h-[1.2em]';
     }
 
-    if (!originalEnglishTextForMemoryCheck) {
+    if (!formattedEnglishSceneText) {
         console.error("[MemoryCheck] ERROR: Original English text missing!");
         voiceStatusEl.textContent = "Error: Cannot perform memory check."; // Use main status for errors
         voiceStatusEl.className = 'text-danger';
@@ -995,7 +996,7 @@ function processMemoryCheckResult(transcript) {
         return;
     }
 
-    const plainOriginal = stripHtml(originalEnglishTextForMemoryCheck).toLowerCase();
+    const plainOriginal = stripHtml(formattedEnglishSceneText).toLowerCase();
     const plainTranscript = transcript ? transcript.toLowerCase() : "";
     const similarity = calculateSimilarity(plainOriginal, plainTranscript);
     const similarityPercent = (similarity * 100).toFixed(0);
@@ -1020,7 +1021,7 @@ function processMemoryCheckResult(transcript) {
         memoryCheckPassed = true;
         isMemoryCheckPhase = false;
         isChoiceSpeakingPhase = true;
-        displayAndHighlightMemoryCheck(originalEnglishTextForMemoryCheck, plainTranscript);
+        displayAndHighlightMemoryCheck(formattedEnglishSceneText, plainTranscript);
         setVocabListVisibility(true);
         setChoicesVisibility(true);
         updateVoiceButtonUI(); // Update button for choice speaking phase
@@ -1050,7 +1051,7 @@ function processMemoryCheckResult(transcript) {
         memoryCheckPassed = false;
         isMemoryCheckPhase = true; // Stay in memory phase
         isChoiceSpeakingPhase = false;
-        sceneTextEl.innerHTML = originalEnglishTextForMemoryCheck; // Show original text again
+        sceneTextEl.innerHTML = formattedEnglishSceneText; // Show original text again (English only)
         sceneTextEl.classList.remove('memory-recall-active');
         setVocabListVisibility(true);
         setChoicesVisibility(false); // Keep choices hidden
@@ -1356,20 +1357,23 @@ function displayScene(sceneId) {
     }
 
     // ---- create EN sentence wrappers *before* saving for later ----------------
-    originalEnglishTextForMemoryCheck = wrapSentencesWithTranslation(
+    const wrappedEnglishText = wrapSentencesWithTranslation(
             sceneDisplayText,          // raw EN
             ukrainianText || ''        // provided UA (may be empty)
     );
     // ---------------------------------------------------------------------------
 
+    formattedEnglishSceneText = formatText(sceneDisplayText);
+    originalEnglishTextForMemoryCheck = wrappedEnglishText;
+
     if (ukrainianText){
         formattedUkrainianTextForMemoryCheck = formatText(ukrainianText);
     }
 
-    const plainEnglishText = stripHtml(originalEnglishTextForMemoryCheck);
+    const plainEnglishText = stripHtml(formattedEnglishSceneText);
 
     // Initial UI Update
-    sceneTextEl.innerHTML = originalEnglishTextForMemoryCheck;
+    sceneTextEl.innerHTML = formattedEnglishSceneText;
     outcomeDisplayEl.innerHTML = outcomeMessage;
     voiceStatusEl.textContent = '';
     voiceStatusEl.className = 'text-info';
@@ -1596,7 +1600,7 @@ function handleVoiceButtonClick() {
             } catch (e) {
                 console.error("[Voice Button] Error starting memory recognition:", e);
                 // Restore UI if start fails
-                sceneTextEl.innerHTML = originalEnglishTextForMemoryCheck;
+                sceneTextEl.innerHTML = formattedEnglishSceneText;
                 sceneTextEl.classList.remove('memory-recall-active');
                 setVocabListVisibility(true);
                 voiceStatusEl.textContent = "Error starting voice input.";
