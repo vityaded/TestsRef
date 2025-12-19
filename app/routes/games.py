@@ -3,6 +3,7 @@ import io
 import os
 import re
 import shutil
+from typing import List
 
 import segno
 from flask import (
@@ -90,8 +91,8 @@ def _save_uploaded_assets(game_dir: str) -> None:
         flash("Some assets were skipped: " + "; ".join(errors), "warning")
 
 
-def _list_existing_files(game_dir: str) -> list[str]:
-    files = []
+def _list_existing_files(game_dir: str) -> List[str]:
+    files: List[str] = []
     for root, _, filenames in os.walk(game_dir):
         for filename in filenames:
             if filename in {"manifest.json", LEGACY_MAP_FILENAME} or filename.startswith("."):
