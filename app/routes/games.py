@@ -1,25 +1,23 @@
-# Corrected app/routes/games.py using current_app.root_path
-
+import csv
 import io
 import os
 import re
+import shutil
 
-import csv
-import jinja2
 import segno
 from flask import (
     Blueprint,
-    render_template,
-    current_app,
     abort,
-    url_for,
+    current_app,
     flash,
     redirect,
+    render_template,
     request,
     send_file,
+    send_from_directory,
+    url_for,
 )
-from flask_login import login_required  # Add if games require login
-from werkzeug.utils import secure_filename
+from flask_login import current_user
 
 from app.forms import (
     AddGameForm,
@@ -27,269 +25,97 @@ from app.forms import (
     CreateTextQuestForm,
     EditGameForm,
 )
+from app.games_storage import (
+    LEGACY_MAP_FILENAME,
+    get_games_root,
+    list_games,
+    load_legacy_map,
+    sanitize_asset_path,
+    sanitize_game_id,
+    save_legacy_map,
+    write_manifest,
+)
+from app.utils import admin_required
 
-# Define the blueprint
-games_bp = Blueprint('games', __name__, url_prefix='/games')
+games_bp = Blueprint("games", __name__, url_prefix="/games")
 
-def get_game_templates():
-    """Scans the games template directory for HTML files."""
-    games_list = []
 
-    # --- CORRECTED PATH CALCULATION ---
-    logger = current_app.logger
+def _games_root() -> str:
+    return get_games_root(current_app)
 
-    try:
-        # current_app.root_path should be the 'app' directory path
-        app_root_path = current_app.root_path
-        logger.debug("games.get_game_templates: current_app.root_path=%s", app_root_path)
 
-        # Construct path relative to the app root path
-        # app_root/templates/games
-        games_template_dir = os.path.join(app_root_path, 'templates', 'games')
-        logger.debug(
-            "games.get_game_templates: calculated games template dir=%s",
-            games_template_dir,
-        )
+def _game_dir(game_id: str) -> str:
+    return os.path.join(_games_root(), game_id)
 
-        # Get absolute path for checking (though relative should work now)
-        abs_games_template_dir = os.path.abspath(games_template_dir)
-        logger.debug(
-            "games.get_game_templates: absolute games template dir=%s",
-            abs_games_template_dir,
-        )
 
-        current_working_dir = os.getcwd()
-        logger.debug(
-            "games.get_game_templates: current working directory=%s",
-            current_working_dir,
-        )
+def _resolve_game_directory(game_name: str):
+    game_dir = _game_dir(game_name)
+    if os.path.isdir(game_dir):
+        return game_dir, None
 
-    except Exception:  # pragma: no cover - defensive logging
-        logger.exception("games.get_game_templates: error while computing paths")
-        return games_list
-    # --- END CORRECTED PATH CALCULATION ---
+    legacy_map = load_legacy_map(_games_root())
+    mapped = legacy_map.get(game_name)
+    if mapped:
+        mapped_dir = _game_dir(mapped)
+        if os.path.isdir(mapped_dir):
+            return mapped_dir, mapped
+    return None, None
 
-    # Check if the directory exists using the (now hopefully correct) path
-    dir_exists = os.path.isdir(abs_games_template_dir) # Check absolute path
-    # dir_exists = os.path.isdir(games_template_dir) # Or check path relative to app root
-    logger.debug(
-        "games.get_game_templates: os.path.isdir(%s)=%s",
-        abs_games_template_dir,
-        dir_exists,
-    )
 
-    if not dir_exists:
-        logger.warning(
-            "games.get_game_templates: games template directory not found at %s",
-            abs_games_template_dir,
-        )
-        # Try listing anyway for debug info
+def _save_uploaded_assets(game_dir: str) -> None:
+    uploaded_files = []
+    for key in ("asset_files", "asset_folder"):
+        uploaded_files.extend(request.files.getlist(key))
+
+    errors = []
+    base_dir = os.path.realpath(game_dir)
+    for storage in uploaded_files:
+        if not storage or not storage.filename:
+            continue
         try:
-            logger.debug(
-                "games.get_game_templates: attempting os.listdir(%s)", abs_games_template_dir
-            )
-            items_anyway = os.listdir(abs_games_template_dir)
-            logger.debug(
-                "games.get_game_templates: unexpected os.listdir result: %s",
-                items_anyway,
-            )
-        except Exception:  # pragma: no cover - defensive logging
-            logger.exception(
-                "games.get_game_templates: os.listdir failed for %s",
-                abs_games_template_dir,
-            )
-        return games_list
+            rel_path = sanitize_asset_path(storage.filename)
+        except ValueError as exc:
+            errors.append(f"{storage.filename}: {exc}")
+            continue
 
-    # If directory WAS found:
-    logger.debug(
-        "games.get_game_templates: games template directory found at %s",
-        abs_games_template_dir,
-    )
-    try:
-        all_items = os.listdir(abs_games_template_dir)
-        logger.debug(
-            "games.get_game_templates: os.listdir returned %s",
-            all_items,
-        )
+        destination = os.path.realpath(os.path.join(game_dir, rel_path))
+        if not destination.startswith(base_dir + os.sep) and destination != base_dir:
+            errors.append(f"{storage.filename}: invalid path")
+            continue
 
-        for item_name in all_items:
-            item_path = os.path.join(abs_games_template_dir, item_name)
-            # print(f"DEBUG: Checking item: {item_name} at path: {item_path}") # Less verbose now
-            if os.path.isfile(item_path) and item_name.lower().endswith('.html') and item_name.lower() != 'index.html':
-                logger.debug(
-                    "games.get_game_templates: found valid game template %s",
-                    item_name,
-                )
-                game_name = os.path.splitext(item_name)[0]
-                display_name = game_name.replace('_', ' ').replace('-', ' ').title()
-                games_list.append({'id': game_name, 'name': display_name})
-            # else: print(f"DEBUG: Skipping item: {item_name}") # Less verbose now
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        storage.save(destination)
 
-        logger.debug(
-            "games.get_game_templates: finished scanning; found games=%s",
-            games_list,
-        )
-    except OSError:
-        logger.exception(
-            "games.get_game_templates: OS error while scanning %s",
-            abs_games_template_dir,
-        )
-    except Exception:  # pragma: no cover - defensive logging
-        logger.exception("games.get_game_templates: unexpected error while scanning")
+    if errors:
+        flash("Some assets were skipped: " + "; ".join(errors), "warning")
 
-    return games_list
 
-@games_bp.route('/')
-#@login_required
+def _list_existing_files(game_dir: str) -> list[str]:
+    files = []
+    for root, _, filenames in os.walk(game_dir):
+        for filename in filenames:
+            if filename in {"manifest.json", LEGACY_MAP_FILENAME} or filename.startswith("."):
+                continue
+            rel_path = os.path.relpath(os.path.join(root, filename), game_dir)
+            files.append(rel_path.replace(os.sep, "/"))
+    files.sort()
+    return files
+
+
+@games_bp.route("/")
 def index():
-    """Displays the list of available games."""
-    current_app.logger.debug("games.index: route called")
-    available_games = get_game_templates()
+    available_games = list_games(_games_root())
     add_game_form = AddGameForm()
     jeopardy_form = CreateJeopardyForm()
     text_quest_form = CreateTextQuestForm()
 
     return render_template(
-        'games/index.html',
+        "games/index.html",
         games=available_games,
         add_game_form=add_game_form,
         jeopardy_form=jeopardy_form,
         text_quest_form=text_quest_form,
     )
-
-def _handle_game_creation(form, success_message):
-    if form.validate_on_submit():
-        game_name = form.name.data.strip()
-        html_content = form.content.data
-        sanitized_name = secure_filename(game_name).lower()
-
-        if not sanitized_name:
-            flash('Invalid game name. Please use letters, numbers, or underscores.', 'danger')
-            return redirect(url_for('games.index'))
-
-        file_name = f"{sanitized_name}.html"
-        games_dir = os.path.join(current_app.root_path, 'templates', 'games')
-        os.makedirs(games_dir, exist_ok=True)
-        file_path = os.path.join(games_dir, file_name)
-
-        if os.path.exists(file_path):
-            flash('A game with this name already exists. Please choose another name.', 'danger')
-            return redirect(url_for('games.index'))
-
-        try:
-            with open(file_path, 'w', encoding='utf-8') as game_file:
-                game_file.write(html_content)
-        except OSError as exc:
-            current_app.logger.exception('Failed to create game template %s: %s', file_name, exc)
-            flash('Could not save the game. Please try again later.', 'danger')
-        else:
-            flash(success_message, 'success')
-            return redirect(url_for('games.play', game_name=sanitized_name))
-    else:
-        for field, errors in form.errors.items():
-            for error in errors:
-                flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
-
-    return redirect(url_for('games.index'))
-
-
-@games_bp.route('/add', methods=['POST'])
-@login_required
-def add_game():
-    """Creates a new game template from the provided HTML content."""
-    form = AddGameForm()
-    return _handle_game_creation(form, 'Game added successfully!')
-
-
-@games_bp.route('/create-text-quest', methods=['POST'])
-@login_required
-def create_text_quest():
-    """Creates a new text quest using the game_test3 blueprint and pasted data blocks."""
-    form = CreateTextQuestForm()
-
-    if not form.validate_on_submit():
-        for field, errors in form.errors.items():
-            for error in errors:
-                flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
-        return redirect(url_for('games.index'))
-
-    game_name = form.name.data.strip()
-    sanitized_name = secure_filename(game_name).lower()
-
-    if not sanitized_name:
-        flash('Invalid game name. Please use letters, numbers, or underscores.', 'danger')
-        return redirect(url_for('games.index'))
-
-    games_dir = os.path.join(current_app.root_path, 'templates', 'games')
-    os.makedirs(games_dir, exist_ok=True)
-
-    file_name = f"{sanitized_name}.html"
-    file_path = os.path.join(games_dir, file_name)
-
-    if os.path.exists(file_path):
-        flash('A game with this name already exists. Please choose another name.', 'danger')
-        return redirect(url_for('games.index'))
-
-    template_path = os.path.join(games_dir, 'game_test3.html')
-
-    try:
-        with open(template_path, 'r', encoding='utf-8') as template_file:
-            base_template = template_file.read()
-    except OSError as exc:
-        current_app.logger.exception('Failed to read base text quest template: %s', exc)
-        flash('Could not load the base text quest template. Please contact support.', 'danger')
-        return redirect(url_for('games.index'))
-
-    user_content = form.content.data
-
-    block_patterns = {
-        'gameData': re.compile(r"const\s+gameData\s*=\s*\{.*?\};\s*//\s*End of gameData", re.DOTALL),
-        'vocabulary': re.compile(r"const\s+vocabulary\s*=\s*\[.*?\];", re.DOTALL),
-        'vocabTranslations': re.compile(r"const\s+vocabTranslations\s*=\s*\{.*?\};", re.DOTALL),
-    }
-
-    extracted_blocks = {}
-
-    try:
-        for label, pattern in block_patterns.items():
-            match = pattern.search(user_content)
-            if not match:
-                raise ValueError(f"Could not find '{label}' block in the provided content.")
-            extracted_blocks[label] = match.group(0).strip()
-    except ValueError as exc:
-        flash(str(exc), 'danger')
-        return redirect(url_for('games.index'))
-
-    replacement_targets = {
-        'gameData': block_patterns['gameData'],
-        'vocabulary': block_patterns['vocabulary'],
-        'vocabTranslations': block_patterns['vocabTranslations'],
-    }
-
-    updated_html = base_template
-
-    try:
-        for label, pattern in replacement_targets.items():
-            updated_html, replacements = pattern.subn(
-                lambda _: extracted_blocks[label], updated_html, count=1
-            )
-            if replacements == 0:
-                raise ValueError(f"Could not replace '{label}' in the base template.")
-    except ValueError as exc:
-        flash(str(exc), 'danger')
-        return redirect(url_for('games.index'))
-
-    try:
-        with open(file_path, 'w', encoding='utf-8') as game_file:
-            game_file.write(updated_html)
-    except OSError as exc:
-        current_app.logger.exception('Failed to create text quest %s: %s', file_name, exc)
-        flash('Could not save the text quest. Please try again later.', 'danger')
-    else:
-        flash('Text quest created successfully!', 'success')
-        return redirect(url_for('games.play', game_name=sanitized_name))
-
-    return redirect(url_for('games.index'))
 
 
 def _parse_jeopardy_content(raw_text: str):
@@ -302,12 +128,16 @@ def _parse_jeopardy_content(raw_text: str):
             continue
 
         if len(row) != 4:
-            raise ValueError(f"Line {line_number}: expected 4 values (category, value, question, answer).")
+            raise ValueError(
+                f"Line {line_number}: expected 4 values (category, value, question, answer)."
+            )
 
         category, value_text, question, answer = [cell.strip() for cell in row]
 
         if not category or not value_text or not question or not answer:
-            raise ValueError(f"Line {line_number}: all fields (category, value, question, answer) are required.")
+            raise ValueError(
+                f"Line {line_number}: all fields (category, value, question, answer) are required."
+            )
 
         try:
             value = int(value_text)
@@ -318,61 +148,95 @@ def _parse_jeopardy_content(raw_text: str):
             categories.append(category)
             entries[category] = []
 
-        entries[category].append({'value': value, 'question': question, 'answer': answer})
+        entries[category].append({"value": value, "question": question, "answer": answer})
 
     if not categories:
-        raise ValueError('No valid questions were provided.')
+        raise ValueError("No valid questions were provided.")
 
     for category in categories:
-        entries[category] = sorted(entries[category], key=lambda item: item['value'])
+        entries[category] = sorted(entries[category], key=lambda item: item["value"])
 
     return categories, entries
 
 
-@games_bp.route('/create-jeopardy', methods=['POST'])
-@login_required
+@games_bp.route("/add", methods=["POST"])
+@admin_required
+def add_game():
+    form = AddGameForm()
+    if form.validate_on_submit():
+        try:
+            game_id = sanitize_game_id(form.name.data, root=_games_root())
+        except ValueError:
+            flash("Invalid game name. Please use letters, numbers, or underscores.", "danger")
+            return redirect(url_for("games.index"))
+
+        game_dir = _game_dir(game_id)
+        if os.path.exists(game_dir):
+            flash("A game with this name already exists. Please choose another name.", "danger")
+            return redirect(url_for("games.index"))
+
+        os.makedirs(game_dir, exist_ok=True)
+        index_path = os.path.join(game_dir, "index.html")
+        with open(index_path, "w", encoding="utf-8") as game_file:
+            game_file.write(form.content.data)
+
+        write_manifest(game_dir, game_id=game_id, title=form.name.data.strip())
+        _save_uploaded_assets(game_dir)
+
+        flash("Game added successfully!", "success")
+        return redirect(url_for("games.play", game_name=game_id))
+
+    for field, errors in form.errors.items():
+        for error in errors:
+            flash(f"Error in {getattr(form, field).label.text}: {error}", "danger")
+    return redirect(url_for("games.index"))
+
+
+@games_bp.route("/create-jeopardy", methods=["POST"])
+@admin_required
 def create_jeopardy():
-    """Creates a Jeopardy-style game from pasted CSV-like content."""
     form = CreateJeopardyForm()
 
     if not form.validate_on_submit():
         for field, errors in form.errors.items():
             for error in errors:
-                flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
-        return redirect(url_for('games.index'))
+                flash(f"Error in {getattr(form, field).label.text}: {error}", "danger")
+        return redirect(url_for("games.index"))
 
-    sanitized_name = secure_filename(form.name.data.strip()).lower()
+    try:
+        game_id = sanitize_game_id(form.name.data, root=_games_root())
+    except ValueError:
+        flash("Invalid game name. Please use letters, numbers, or underscores.", "danger")
+        return redirect(url_for("games.index"))
 
-    if not sanitized_name:
-        flash('Invalid game name. Please use letters, numbers, or underscores.', 'danger')
-        return redirect(url_for('games.index'))
-
-    file_path = _get_game_file_path(sanitized_name)
-
-    if os.path.exists(file_path):
-        flash('A game with this name already exists. Please choose another name.', 'danger')
-        return redirect(url_for('games.index'))
+    game_dir = _game_dir(game_id)
+    if os.path.exists(game_dir):
+        flash("A game with this name already exists. Please choose another name.", "danger")
+        return redirect(url_for("games.index"))
 
     try:
         categories, entries = _parse_jeopardy_content(form.content.data)
-    except ValueError as exc:  # pragma: no cover - input validation
-        flash(str(exc), 'danger')
-        return redirect(url_for('games.index'))
+    except ValueError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("games.index"))
 
-    values = sorted({item['value'] for cat_items in entries.values() for item in cat_items})
-
-    board = {}
-    for category in categories:
-        board[category] = {item['value']: {'question': item['question'], 'answer': item['answer']} for item in entries[category]}
+    values = sorted({item["value"] for cat_items in entries.values() for item in cat_items})
+    board = {
+        category: {
+            item["value"]: {"question": item["question"], "answer": item["answer"]}
+            for item in entries[category]
+        }
+        for category in categories
+    }
 
     meta_questions = []
     for category in categories:
         for item in entries[category]:
-            meta_questions.append(item['question'])
-    meta_description = ', '.join(meta_questions[:4])
+            meta_questions.append(item["question"])
+    meta_description = ", ".join(meta_questions[:4])
 
     html_content = render_template(
-        'game_templates/jeopardy.html',
+        "game_templates/jeopardy.html",
         title=form.name.data.strip(),
         categories=categories,
         values=values,
@@ -380,156 +244,257 @@ def create_jeopardy():
         meta_description=meta_description,
     )
 
+    os.makedirs(game_dir, exist_ok=True)
+    index_path = os.path.join(game_dir, "index.html")
+    with open(index_path, "w", encoding="utf-8") as game_file:
+        game_file.write(html_content)
+
+    write_manifest(game_dir, game_id=game_id, title=form.name.data.strip())
+    _save_uploaded_assets(game_dir)
+
+    flash("Jeopardy game created successfully!", "success")
+    return redirect(url_for("games.play", game_name=game_id))
+
+
+@games_bp.route("/create-text-quest", methods=["POST"])
+@admin_required
+def create_text_quest():
+    form = CreateTextQuestForm()
+
+    if not form.validate_on_submit():
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"Error in {getattr(form, field).label.text}: {error}", "danger")
+        return redirect(url_for("games.index"))
+
     try:
-        games_dir = os.path.join(current_app.root_path, 'templates', 'games')
-        os.makedirs(games_dir, exist_ok=True)
+        game_id = sanitize_game_id(form.name.data, root=_games_root())
+    except ValueError:
+        flash("Invalid game name. Please use letters, numbers, or underscores.", "danger")
+        return redirect(url_for("games.index"))
 
-        with open(file_path, 'w', encoding='utf-8') as game_file:
-            game_file.write(html_content)
-    except OSError as exc:
-        current_app.logger.exception('Failed to create jeopardy template %s: %s', file_path, exc)
-        flash('Could not save the Jeopardy game. Please try again later.', 'danger')
-        return redirect(url_for('games.index'))
+    game_dir = _game_dir(game_id)
+    if os.path.exists(game_dir):
+        flash("A game with this name already exists. Please choose another name.", "danger")
+        return redirect(url_for("games.index"))
 
-    flash('Jeopardy game created successfully!', 'success')
-    return redirect(url_for('games.play', game_name=sanitized_name))
+    template_path = os.path.join(current_app.root_path, "templates", "games", "game_test3.html")
+
+    try:
+        with open(template_path, "r", encoding="utf-8") as template_file:
+            base_template = template_file.read()
+    except OSError:
+        flash("Could not load the base text quest template. Please contact support.", "danger")
+        return redirect(url_for("games.index"))
+
+    user_content = form.content.data
+
+    block_patterns = {
+        "gameData": re.compile(
+            r"const\s+gameData\s*=\s*\{.*?\};\s*//\s*End of gameData", re.DOTALL
+        ),
+        "vocabulary": re.compile(r"const\s+vocabulary\s*=\s*\[.*?\];", re.DOTALL),
+        "vocabTranslations": re.compile(r"const\s+vocabTranslations\s*=\s*\{.*?\};", re.DOTALL),
+    }
+
+    extracted_blocks = {}
+    try:
+        for label, pattern in block_patterns.items():
+            match = pattern.search(user_content)
+            if not match:
+                raise ValueError(f"Could not find '{label}' block in the provided content.")
+            extracted_blocks[label] = match.group(0).strip()
+    except ValueError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("games.index"))
+
+    replacement_targets = {
+        "gameData": block_patterns["gameData"],
+        "vocabulary": block_patterns["vocabulary"],
+        "vocabTranslations": block_patterns["vocabTranslations"],
+    }
+
+    updated_html = base_template
+    try:
+        for label, pattern in replacement_targets.items():
+            updated_html, replacements = pattern.subn(
+                lambda _: extracted_blocks[label], updated_html, count=1
+            )
+            if replacements == 0:
+                raise ValueError(f"Could not replace '{label}' in the base template.")
+    except ValueError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("games.index"))
+
+    os.makedirs(game_dir, exist_ok=True)
+    index_path = os.path.join(game_dir, "index.html")
+    with open(index_path, "w", encoding="utf-8") as game_file:
+        game_file.write(updated_html)
+
+    write_manifest(game_dir, game_id=game_id, title=form.name.data.strip())
+    _save_uploaded_assets(game_dir)
+
+    flash("Text quest created successfully!", "success")
+    return redirect(url_for("games.play", game_name=game_id))
 
 
-def _get_game_file_path(game_name: str) -> str:
-    games_dir = os.path.join(current_app.root_path, 'templates', 'games')
-    return os.path.join(games_dir, f"{game_name}.html")
-
-
-@games_bp.route('/edit/<string:game_name>', methods=['GET', 'POST'])
-@login_required
+@games_bp.route("/edit/<string:game_name>", methods=["GET", "POST"])
+@admin_required
 def edit_game(game_name):
-    """Updates an existing game template and optionally renames it."""
-    file_path = _get_game_file_path(game_name)
+    game_dir = _game_dir(game_name)
 
-    if not os.path.exists(file_path):
+    if not os.path.isdir(game_dir):
         abort(404)
 
     form = EditGameForm()
+    index_path = os.path.join(game_dir, "index.html")
 
-    if request.method == 'GET':
+    if request.method == "GET":
         try:
-            with open(file_path, 'r', encoding='utf-8') as game_file:
+            with open(index_path, "r", encoding="utf-8") as game_file:
                 form.name.data = game_name
                 form.content.data = game_file.read()
         except OSError:
-            current_app.logger.exception(
-                'Failed to read game template %s for editing', file_path
-            )
-            flash('Could not load the game for editing. Please try again later.', 'danger')
-            return redirect(url_for('games.index'))
+            flash("Could not load the game for editing. Please try again later.", "danger")
+            return redirect(url_for("games.index"))
 
     if form.validate_on_submit():
-        new_name = form.name.data.strip()
-        sanitized_name = secure_filename(new_name).lower()
-
-        if not sanitized_name:
-            flash('Invalid game name. Please use letters, numbers, or underscores.', 'danger')
-            return render_template('games/edit_game.html', form=form, original_game_name=game_name)
-
-        new_file_path = _get_game_file_path(sanitized_name)
-
-        if sanitized_name != game_name and os.path.exists(new_file_path):
-            flash('A game with this name already exists. Please choose another name.', 'danger')
-            return render_template('games/edit_game.html', form=form, original_game_name=game_name)
-
         try:
-            target_path = new_file_path if sanitized_name != game_name else file_path
-            with open(target_path, 'w', encoding='utf-8') as game_file:
-                game_file.write(form.content.data)
+            new_id = sanitize_game_id(
+                form.name.data,
+                root=_games_root(),
+                allow_existing=game_name,
+            )
+        except ValueError:
+            flash("Invalid game name. Please use letters, numbers, or underscores.", "danger")
+            return render_template(
+                "games/edit_game.html",
+                form=form,
+                original_game_name=game_name,
+                existing_files=_list_existing_files(game_dir),
+            )
 
-            if sanitized_name != game_name:
-                os.remove(file_path)
-        except OSError as exc:
-            current_app.logger.exception('Failed to update game template %s: %s', file_path, exc)
-            if sanitized_name != game_name and os.path.exists(target_path):
-                try:
-                    os.remove(target_path)
-                except OSError:
-                    current_app.logger.exception(
-                        'Failed to remove partially written game template %s', target_path
-                    )
-            flash('Could not save the game. Please try again later.', 'danger')
-            return render_template('games/edit_game.html', form=form, original_game_name=game_name)
+        if new_id != game_name:
+            new_dir = _game_dir(new_id)
+            if os.path.exists(new_dir):
+                flash("A game with this name already exists. Please choose another name.", "danger")
+                return render_template(
+                    "games/edit_game.html",
+                    form=form,
+                    original_game_name=game_name,
+                    existing_files=_list_existing_files(game_dir),
+                )
+            shutil.move(game_dir, new_dir)
+            legacy_map = load_legacy_map(_games_root())
+            legacy_map[game_name] = new_id
+            save_legacy_map(_games_root(), legacy_map)
 
-        flash('Game updated successfully!', 'success')
-        return redirect(url_for('games.play', game_name=sanitized_name))
+            game_name = new_id
+            game_dir = new_dir
+            index_path = os.path.join(game_dir, "index.html")
 
-    if request.method == 'POST':
+        with open(index_path, "w", encoding="utf-8") as game_file:
+            game_file.write(form.content.data)
+
+        write_manifest(game_dir, game_id=game_name, title=form.name.data.strip())
+        _save_uploaded_assets(game_dir)
+
+        flash("Game updated successfully!", "success")
+        return redirect(url_for("games.play", game_name=game_name))
+
+    if request.method == "POST":
         for field, errors in form.errors.items():
             for error in errors:
-                flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
+                flash(f"Error in {getattr(form, field).label.text}: {error}", "danger")
 
-    return render_template('games/edit_game.html', form=form, original_game_name=game_name)
+    return render_template(
+        "games/edit_game.html",
+        form=form,
+        original_game_name=game_name,
+        existing_files=_list_existing_files(game_dir),
+    )
 
 
-@games_bp.route('/delete/<string:game_name>', methods=['POST'])
-@login_required
+@games_bp.route("/delete/<string:game_name>", methods=["POST"])
+@admin_required
 def delete_game(game_name):
-    """Deletes a saved game template."""
-    file_path = _get_game_file_path(game_name)
+    game_dir = _game_dir(game_name)
 
-    if not os.path.exists(file_path):
+    if not os.path.isdir(game_dir):
         abort(404)
 
     try:
-        os.remove(file_path)
+        shutil.rmtree(game_dir)
     except OSError:
-        current_app.logger.exception('Failed to delete game template %s', file_path)
-        flash('Could not delete the game. Please try again later.', 'danger')
+        flash("Could not delete the game. Please try again later.", "danger")
     else:
-        flash('Game deleted successfully.', 'success')
+        flash("Game deleted successfully.", "success")
 
-    return redirect(url_for('games.index'))
+    return redirect(url_for("games.index"))
 
 
-@games_bp.route('/<string:game_name>/qr.png')
+@games_bp.route("/<string:game_name>/qr.png")
 def game_qr_code(game_name: str):
-    """Generates a QR code image for the requested game."""
-    file_path = _get_game_file_path(game_name)
-
-    if not os.path.exists(file_path):
+    game_dir, mapped = _resolve_game_directory(game_name)
+    if not game_dir:
         abort(404)
 
-    game_url = url_for('games.play', game_name=game_name, _external=True)
-    qr = segno.make(game_url, error='m')
+    target_game = mapped or game_name
+    game_url = url_for("games.play", game_name=target_game, _external=True)
+    qr = segno.make(game_url, error="m")
 
     buffer = io.BytesIO()
     qr.save(
         buffer,
-        kind='png',
+        kind="png",
         scale=10,
-        dark='#000000',
-        light='#ffffff',
+        dark="#000000",
+        light="#ffffff",
     )
     buffer.seek(0)
 
-    return send_file(buffer, mimetype='image/png')
+    return send_file(buffer, mimetype="image/png")
 
 
-@games_bp.route('/<string:game_name>')
-#@login_required
+@games_bp.route("/<string:game_name>")
+def play_redirect(game_name):
+    return redirect(url_for("games.play", game_name=game_name))
+
+
+@games_bp.route("/<string:game_name>/")
 def play(game_name):
-    """Renders a specific game template."""
-    template_path = f"games/{game_name}.html"
-    current_app.logger.debug(
-        "games.play: attempting to render template %s",
-        template_path,
-    )
-    try:
-        # Jinja uses paths relative to the *template_folder*, so this should still work
-        current_app.jinja_env.get_template(template_path)
-        return render_template(template_path, game_title=game_name.replace('_', ' ').title())
-    except jinja2.exceptions.TemplateNotFound:
-        current_app.logger.warning(
-            "games.play: game template not found: %s",
-            template_path,
-        )
+    game_dir, mapped = _resolve_game_directory(game_name)
+    if not game_dir:
         abort(404)
-    except Exception as e:
-        current_app.logger.exception("games.play: error rendering game %s", game_name)
-        abort(500)
+
+    if mapped:
+        return redirect(url_for("games.play", game_name=mapped))
+
+    index_path = os.path.join(game_dir, "index.html")
+    if not os.path.exists(index_path):
+        abort(404)
+
+    return send_from_directory(game_dir, "index.html")
+
+
+@games_bp.route("/<string:game_name>/<path:asset_path>")
+def serve_asset(game_name, asset_path):
+    game_dir, mapped = _resolve_game_directory(game_name)
+    if not game_dir:
+        abort(404)
+    if mapped:
+        return redirect(url_for("games.serve_asset", game_name=mapped, asset_path=asset_path))
+
+    try:
+        rel_path = sanitize_asset_path(asset_path)
+    except ValueError:
+        abort(404)
+
+    full_path = os.path.realpath(os.path.join(game_dir, rel_path))
+    base_dir = os.path.realpath(game_dir)
+    if not full_path.startswith(base_dir + os.sep) and full_path != base_dir:
+        abort(404)
+    if not os.path.exists(full_path):
+        abort(404)
+
+    return send_from_directory(game_dir, rel_path)

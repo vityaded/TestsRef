@@ -5,7 +5,7 @@
 {% block content %}
   <div class="my-4">
     <h1 class="mb-4">Edit Game</h1>
-    <form method="post" action="{{ url_for('games.edit_game', game_name=original_game_name) }}">
+    <form method="post" action="{{ url_for('games.edit_game', game_name=original_game_name) }}" enctype="multipart/form-data">
       {{ form.hidden_tag() }}
       <div class="form-group">
         {{ form.name.label(class="form-label") }}
@@ -15,6 +15,27 @@
         {{ form.content.label(class="form-label") }}
         {{ form.content(class="form-control", rows=18, placeholder="Update game HTML here") }}
       </div>
+      <div class="form-group">
+        <label>Upload files</label>
+        <input class="form-control" type="file" name="asset_files" multiple>
+      </div>
+
+      <div class="form-group">
+        <label>Upload folder</label>
+        <input class="form-control" type="file" name="asset_folder" webkitdirectory directory multiple>
+        <small class="form-text text-muted">Chrome/Edge support. Folder structure will be preserved.</small>
+      </div>
+
+      {% if existing_files %}
+        <div class="form-group">
+          <label>Existing files</label>
+          <ul class="list-unstyled">
+            {% for file_path in existing_files %}
+              <li><code>{{ file_path }}</code></li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
       <div class="d-flex justify-content-between">
         <a href="{{ url_for('games.index') }}" class="btn btn-secondary">Cancel</a>
         {{ form.submit(class="btn btn-primary") }}
