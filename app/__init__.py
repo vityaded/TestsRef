@@ -1,5 +1,6 @@
 import logging
 import sys
+import os
 from flask import Flask, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
@@ -100,9 +101,16 @@ def configure_logging(app):
     )
 
 
-def create_app():
-    app = Flask(__name__)
+def create_app(config_overrides=None):
+    instance_path = None
+    if config_overrides:
+        instance_path = config_overrides.get("INSTANCE_PATH")
+    app = Flask(__name__, instance_path=instance_path)
     app.config.from_object(Config)
+    if config_overrides:
+        app.config.update(config_overrides)
+
+    os.makedirs(app.instance_path, exist_ok=True)
 
     configure_logging(app)
 
@@ -111,7 +119,7 @@ def create_app():
     login_manager.init_app(app)
     migrate.init_app(app, db)
     csrf.init_app(app)
-    
+
     # Import models
     from . import models
 
@@ -121,8 +129,9 @@ def create_app():
     from .routes.tests import tests_bp
     from .routes.vocabulary import vocab_bp
     from .routes.admin import admin_bp
-    from. routes.reading import reading_bp
+    from .routes.reading import reading_bp
     from .routes.games import games_bp
+    from .games_storage import migrate_legacy_games
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -212,5 +221,8 @@ def create_app():
     def inject_csrf_token():
         from flask_wtf.csrf import generate_csrf
         return dict(csrf_token=generate_csrf())
+
+    with app.app_context():
+        migrate_legacy_games(app)
 
     return app
