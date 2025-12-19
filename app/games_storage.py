@@ -3,7 +3,7 @@ import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
+from typing import Dict, Iterable, List, Optional, Set
 
 from werkzeug.utils import secure_filename
 
@@ -22,7 +22,7 @@ def _legacy_map_path(root: str) -> str:
     return os.path.join(root, LEGACY_MAP_FILENAME)
 
 
-def load_legacy_map(root: str) -> dict:
+def load_legacy_map(root: str) -> Dict[str, str]:
     path = _legacy_map_path(root)
     if not os.path.exists(path):
         return {}
@@ -34,7 +34,7 @@ def load_legacy_map(root: str) -> dict:
         return {}
 
 
-def save_legacy_map(root: str, mapping: dict) -> None:
+def save_legacy_map(root: str, mapping: Dict[str, str]) -> None:
     os.makedirs(root, exist_ok=True)
     path = _legacy_map_path(root)
     tmp_path = f"{path}.tmp"
@@ -55,15 +55,15 @@ def is_reserved_legacy_template(filename: str) -> bool:
 def sanitize_game_id(
     name: str,
     *,
-    root: str | None = None,
-    existing_ids: Iterable[str] | None = None,
-    allow_existing: str | None = None,
+    root: Optional[str] = None,
+    existing_ids: Optional[Iterable[str]] = None,
+    allow_existing: Optional[str] = None,
 ) -> str:
     base_id = secure_filename(name or "").lower()
     if not base_id:
         raise ValueError("Game id cannot be empty")
 
-    existing: set[str] = set(existing_ids or [])
+    existing: Set[str] = set(existing_ids or [])
     if root:
         try:
             for entry in os.listdir(root):
@@ -105,7 +105,7 @@ def write_manifest(game_dir: str, *, game_id: str, title: str) -> None:
     os.replace(tmp_path, path)
 
 
-def list_games(root: str) -> list[dict]:
+def list_games(root: str) -> List[Dict[str, str]]:
     games = []
     if not os.path.isdir(root):
         return games
@@ -138,7 +138,7 @@ def list_games(root: str) -> list[dict]:
 def sanitize_asset_path(path_value: str) -> str:
     normalized = (path_value or "").replace("\\", "/")
     parts = normalized.split("/")
-    sanitized_parts: list[str] = []
+    sanitized_parts: List[str] = []
 
     for part in parts:
         if part in ("", ".", ".."):
