@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Jeopardy Game</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #121258; color: white; text-align: center; }
+        table { width: 100%; border-collapse: collapse; }
+        td, th { padding: 15px; border: 2px solid white; cursor: pointer; }
+        td { font-size: 24px; background-color: #3333aa; }
+        th { font-size: 28px; background-color: #000088; }
+        td:hover { background-color: #5555cc; }
+    </style>
+    <script>
+        function showAnswer(question, answer) {
+            alert(question + "\n\nAnswer: " + answer);
+        }
+    </script>
+</head>
+<body>
+    <h1>Jeopardy Board</h1>
+    <table>
+        <tr>
+            <th>Job Vocabulary</th>
+            <th>Future Tenses</th>
+            <th>Cause & Effect</th>
+            <th>Work Life</th>
+            <th>Grammar Grab Bag</th>
+        </tr>
+        <tr>
+            <td onclick='showAnswer("This adjective describes a job that is difficult but in an interesting way.", "What is challenging?")'>100</td>
+            <td onclick='showAnswer("Which future form is typically used for spontaneous decisions made at the moment of speaking?", "What is will?")'>100</td>
+            <td onclick='showAnswer("In the sentence, \"If it rains, we will stay inside,\" which part is the cause?", "What is If it rains?")'>100</td>
+            <td onclick='showAnswer("This is an advantage of working on a team.", "What is collaboration?")'>100</td>
+            <td onclick='showAnswer("Pronoun to replace \"the heavy bag.\"", "What is it?")'>100</td>
+        </tr>
+        <tr>
+            <td onclick='showAnswer("Job with a standard schedule from Monday to Friday.", "What is nine-to-five?")'>200</td>
+            <td onclick='showAnswer("If you see dark clouds, you say: \"It's ____ rain.\"", "What is going to?")'>200</td>
+            <td onclick='showAnswer("Sentence structure used to talk about future results.", "What is first conditional?")'>200</td>
+            <td onclick='showAnswer("Adjective for a job that makes you feel tired and stressed.", "What is stressful?")'>200</td>
+            <td onclick='showAnswer("Negative form of \"I will go.\"", "What is I won't go?")'>200</td>
+        </tr>
+        <tr>
+            <td onclick='showAnswer("Verb meaning to get money for work.", "What is to earn?")'>300</td>
+            <td onclick='showAnswer("Complete: \"I ____ visit my grandparents this weekend.\"", "What is am going to?")'>300</td>
+            <td onclick='showAnswer("Combine: You don’t hurry + You will be late.", "What is If you don't hurry, you will be late?")'>300</td>
+            <td onclick='showAnswer("The desire to succeed and achieve.", "What is ambition?")'>300</td>
+            <td onclick='showAnswer("Punctuation often needed after \"if\" clause.", "What is a comma?")'>300</td>
+        </tr>
+        <tr>
+            <td onclick='showAnswer("Prefix meaning wrongly or badly.", "What is mis-?")'>400</td>
+            <td onclick='showAnswer("Form common for general predictions or promises.", "What is will?")'>400</td>
+            <td onclick='showAnswer("Does tense in \"if\" part of first conditional refer to present or future?", "What is present tense?")'>400</td>
+            <td onclick='showAnswer("Potential downside of working outdoors.", "What is bad weather?")'>400</td>
+            <td onclick='showAnswer("Word showing contrast in \"The job is hard; ____, it’s rewarding.\"", "What is however?")'>400</td>
+        </tr>
+        <tr>
+            <td onclick='showAnswer("General term for a person who creates things.", "What is a designer or architect?")'>500</td>
+            <td onclick='showAnswer("Adverb making future plan certain: \"I will ____ apply.\"", "What is definitely?")'>500</td>
+            <td onclick='showAnswer("Word connecting two ideas in: \"He's great employee, ____, he's on time.\"", "What is because?")'>500</td>
+            <td onclick='showAnswer("Going to work immediately after school allows this.", "What is earning money immediately?")'>500</td>
+            <td onclick='showAnswer("Past simple describes actions that are?", "What is finished or completed?")'>500</td>
+        </tr>
+    </table>
+</body>
+</html>

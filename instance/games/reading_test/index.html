@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Primary Reading Tutor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* Custom styles for better readability and child-friendliness */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f9ff; /* Light blue background */
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 960px;
+        }
+        .word-highlight {
+            background-color: #facc15; /* Yellow highlight */
+            padding: 2px 4px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .word-correct {
+            background-color: #86efac; /* Green highlight for correct */
+        }
+        .word-incorrect {
+            background-color: #fca5a5; /* Red highlight for incorrect */
+        }
+        button {
+            transition: all 0.2s ease-in-out;
+        }
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body class="p-4">
+
+<div id="root" class="container mx-auto bg-white p-6 rounded-lg shadow-xl"></div>
+
+<script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+
+    // Main App Component
+    const App = () => {
+        const [imageSrc, setImageSrc] = useState(null);
+        const [extractedText, setExtractedText] = useState('');
+        const [words, setWords] = useState([]);
+        const [currentWordIndex, setCurrentWordIndex] = useState(0);
+        const [isListening, setIsListening] = useState(false);
+        const [message, setMessage] = useState('');
+
+        // Simulate OCR result with text from the uploaded image
+        // In a real app, you would use an OCR library here
+        const simulateOcr = (text) => {
+             // Basic cleaning and splitting into words
+            const cleanedText = text.replace(/[.,!?;:]/g, '').toLowerCase();
+            const wordsArray = cleanedText.split(/\s+/).filter(word => word.length > 0);
+            setWords(wordsArray);
+            setExtractedText(text); // Keep original text for display
+            setCurrentWordIndex(0);
+            setMessage('');
+        };
+
+        // Handle file upload
+        const handleFileUpload = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setImageSrc(reader.result);
+                    // Simulate OCR with the text from the user's uploaded image
+                    // Replace this with actual OCR logic in a real app
+                    const textFromImage = "Oh no! Where's the ball? Is it under the seesaw? Good try, Tim. No, it isn't. Look! The ball's on the slide. Oh no! Look at the ball now. Goal! And now it's in the net!";
+                    simulateOcr(textFromImage);
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        // Text-to-Speech function
+        const speakWord = (word) => {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(word);
+                utterance.lang = 'en-US'; // Set language
+                speechSynthesis.speak(utterance);
+            } else {
+                setMessage('Text-to-speech not supported in this browser.');
+            }
+        };
+
+        // Speech Recognition function
+        const startListening = () => {
+            if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'en-US'; // Set language
+                recognition.interimResults = false; // Get final results only
+                recognition.maxAlternatives = 1; // Only get the most likely result
+
+                recognition.onstart = () => {
+                    setIsListening(true);
+                    setMessage('Listening...');
+                };
+
+                recognition.onresult = (event) => {
+                    const spokenWord = event.results[0][0].transcript.toLowerCase();
+                    const targetWord = words[currentWordIndex].toLowerCase();
+
+                    if (spokenWord === targetWord) {
+                        setMessage('Correct!');
+                        // Move to the next word after a short delay
+                        setTimeout(() => {
+                            if (currentWordIndex < words.length - 1) {
+                                setCurrentWordIndex(currentWordIndex + 1);
+                                setMessage('');
+                            } else {
+                                setMessage('You have read all the words!');
+                            }
+                        }, 1000);
+                    } else {
+                        setMessage(`Try again. You said "${spokenWord}"`);
+                    }
+                };
+
+                recognition.onerror = (event) => {
+                    setIsListening(false);
+                    setMessage(`Speech recognition error: ${event.error}`);
+                };
+
+                recognition.onend = () => {
+                    setIsListening(false);
+                    if (message === 'Listening...') { // If no result was captured
+                         setMessage('Did not hear anything. Please try again.');
+                    }
+                };
+
+                recognition.start();
+            } else {
+                setMessage('Speech recognition not supported in this browser.');
+            }
+        };
+
+        // Effect to speak the current word when the index changes
+        useEffect(() => {
+            if (words.length > 0 && currentWordIndex < words.length) {
+                 // Optional: automatically speak the word when it changes
+                 // speakWord(words[currentWordIndex]);
+            }
+        }, [currentWordIndex, words]);
+
+
+        return (
+            <div className="flex flex-col items-center space-y-6">
+                <h1 className="text-3xl font-bold text-blue-700">Primary Reading Tutor</h1>
+
+                {/* File Upload */}
+                <div className="w-full">
+                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="file-upload">
+                        Upload an image with text:
+                    </label>
+                    <input
+                        type="file"
+                        id="file-upload"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    />
+                </div>
+
+                {/* Image Display */}
+                {imageSrc && (
+                    <div className="w-full max-h-96 overflow-hidden rounded-lg shadow-md">
+                        <img src={imageSrc} alt="Uploaded content" className="block w-full h-auto object-contain"/>
+                    </div>
+                )}
+
+                {/* Text Display and Interaction */}
+                {words.length > 0 && (
+                    <div className="text-lg text-center leading-relaxed">
+                        {extractedText.split(/\s+/).map((word, index) => {
+                            // Simple check to see if this word (case-insensitive, no punctuation) matches the current target word
+                            const isCurrent = words[currentWordIndex] && word.toLowerCase().replace(/[.,!?;:]/g, '') === words[currentWordIndex].toLowerCase();
+                            return (
+                                <span
+                                    key={index}
+                                    className={`inline-block mx-1 my-1 ${isCurrent ? 'word-highlight font-semibold' : ''}`}
+                                    onClick={() => speakWord(word.replace(/[.,!?;:]/g, ''))} // Speak word on click
+                                >
+                                    {word}
+                                </span>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* Controls */}
+                {words.length > 0 && currentWordIndex < words.length && (
+                    <div className="flex space-x-4 mt-4">
+                        <button
+                            onClick={() => speakWord(words[currentWordIndex])}
+                            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full"
+                        >
+                            Read Word Aloud
+                        </button>
+                        <button
+                            onClick={startListening}
+                            disabled={isListening}
+                            className={`bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full ${isListening ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {isListening ? 'Listening...' : 'Speak the Word'}
+                        </button>
+                    </div>
+                )}
+
+                {/* Message Area */}
+                {message && (
+                    <div className={`mt-4 p-3 rounded-lg ${message.includes('Correct') ? 'bg-green-200 text-green-800' : message.includes('error') || message.includes('Try again') ? 'bg-red-200 text-red-800' : 'bg-blue-200 text-blue-800'}`}>
+                        {message}
+                    </div>
+                )}
+
+                {/* Completion Message */}
+                 {words.length > 0 && currentWordIndex >= words.length && (
+                    <div className="mt-4 p-3 rounded-lg bg-yellow-200 text-yellow-800 font-semibold">
+                        Great job! You have finished reading.
+                    </div>
+                 )}
+
+            </div>
+        );
+    };
+
+    // Render the App component
+    ReactDOM.render(<App />, document.getElementById('root'));
+
+</script>
+
+</body>
+</html>

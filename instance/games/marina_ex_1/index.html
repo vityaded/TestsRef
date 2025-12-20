@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive English Exercises (B1-B2)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .tab-btn {
+            transition: all 0.3s ease;
+        }
+        .tab-btn.active {
+            border-color: #4f46e5;
+            background-color: #4f46e5;
+            color: white;
+        }
+        .exercise-section {
+            display: none;
+        }
+        .exercise-section.active {
+            display: block;
+        }
+        .feedback {
+            border-left-width: 4px;
+            padding: 1rem;
+            margin-top: 0.5rem;
+            border-radius: 0 0.25rem 0.25rem 0;
+        }
+        .feedback.correct {
+            background-color: #dcfce7;
+            border-color: #22c55e;
+            color: #166534;
+        }
+        .feedback.incorrect {
+            background-color: #fee2e2;
+            border-color: #ef4444;
+            color: #991b1b;
+        }
+        select, input[type="text"] {
+            border-radius: 0.375rem;
+            border: 1px solid #d1d5db;
+            padding: 0.5rem 0.75rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        select:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.4);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto bg-white rounded-2xl shadow-lg p-6 md:p-10">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Interactive English Exercises</h1>
+            <p class="text-gray-600 mt-2 text-lg">Level: B1-B2</p>
+        </header>
+
+        <!-- Tabs Navigation -->
+        <div class="mb-8 border-b border-gray-200">
+            <nav class="flex flex-wrap -mb-px justify-center" aria-label="Tabs">
+                <button class="tab-btn active text-gray-600 hover:text-gray-800 hover:bg-gray-50 border-transparent text-lg font-medium text-center py-3 px-5 rounded-t-lg" onclick="showTab('ex1', this)">1. Gap Filling</button>
+                <button class="tab-btn text-gray-600 hover:text-gray-800 hover:bg-gray-50 border-transparent text-lg font-medium text-center py-3 px-5 rounded-t-lg" onclick="showTab('ex2', this)">2. Definitions</button>
+                <button class="tab-btn text-gray-600 hover:text-gray-800 hover:bg-gray-50 border-transparent text-lg font-medium text-center py-3 px-5 rounded-t-lg" onclick="showTab('ex3', this)">3. Unscramble</button>
+                <button class="tab-btn text-gray-600 hover:text-gray-800 hover:bg-gray-50 border-transparent text-lg font-medium text-center py-3 px-5 rounded-t-lg" onclick="showTab('ex4', this)">4. Reading 1</button>
+                <button class="tab-btn text-gray-600 hover:text-gray-800 hover:bg-gray-50 border-transparent text-lg font-medium text-center py-3 px-5 rounded-t-lg" onclick="showTab('ex5', this)">5. Reading 2</button>
+            </nav>
+        </div>
+
+        <!-- Exercise Sections -->
+        <main>
+            <!-- Exercise 1: Gap Filling -->
+            <section id="ex1" class="exercise-section active">
+                <h2 class="text-2xl font-semibold mb-6">Exercise 1: Gap Filling</h2>
+                <p class="mb-6 text-gray-700">Choose the correct word to complete each sentence.</p>
+                <div id="gap-filling-container" class="space-y-6"></div>
+                <div id="gap-filling-score" class="mt-8 text-xl font-semibold text-center"></div>
+                <div class="mt-6 flex justify-center space-x-4">
+                    <button onclick="checkGapFilling()" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition">Check Answers</button>
+                    <button onclick="resetGapFilling()" class="bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg hover:bg-gray-400 transition">Reset</button>
+                </div>
+            </section>
+
+            <!-- Exercise 2: Match the Definition -->
+            <section id="ex2" class="exercise-section">
+                <h2 class="text-2xl font-semibold mb-6">Exercise 2: Match the Definition</h2>
+                <p class="mb-6 text-gray-700">Choose the word that best matches the definition.</p>
+                <div id="definitions-container" class="space-y-6"></div>
+                <div id="definitions-score" class="mt-8 text-xl font-semibold text-center"></div>
+                <div class="mt-6 flex justify-center space-x-4">
+                    <button onclick="checkDefinitions()" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition">Check Answers</button>
+                    <button onclick="resetDefinitions()" class="bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg hover:bg-gray-400 transition">Reset</button>
+                </div>
+            </section>
+
+            <!-- Exercise 3: Unscramble the Sentence -->
+            <section id="ex3" class="exercise-section">
+                <h2 class="text-2xl font-semibold mb-6">Exercise 3: Unscramble the Sentence</h2>
+                <p class="mb-6 text-gray-700">Put the words in the correct order to make a sentence.</p>
+                <div id="unscramble-container" class="space-y-6"></div>
+                <div id="unscramble-score" class="mt-8 text-xl font-semibold text-center"></div>
+                <div class="mt-6 flex justify-center space-x-4">
+                    <button onclick="checkUnscramble()" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition">Check Answers</button>
+                    <button onclick="resetUnscramble()" class="bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg hover:bg-gray-400 transition">Reset</button>
+                </div>
+            </section>
+
+            <!-- Exercise 4 & 5: Reading Comprehension -->
+            <section id="ex4" class="exercise-section">
+                <h2 class="text-2xl font-semibold mb-6">Exercise 4 & 5: Reading Comprehension</h2>
+                <div class="bg-gray-50 p-6 rounded-lg">
+                    <h3 class="text-xl font-semibold mb-4">Part 1: Text with Gaps</h3>
+                    <p class="mb-6 text-gray-700">Read the text below and choose the correct word for each gap.</p>
+                    <div id="reading-gaps-container" class="text-lg leading-relaxed space-y-4"></div>
+                    <div id="reading-gaps-score" class="mt-6 text-lg font-semibold text-center"></div>
+                     <div class="mt-6 flex justify-center space-x-4">
+                        <button onclick="checkReadingGaps()" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition">Check Text</button>
+                        <button onclick="resetReadingGaps()" class="bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg hover:bg-gray-400 transition">Reset</button>
+                    </div>
+                </div>
+                <hr class="my-8">
+                <div class="bg-gray-50 p-6 rounded-lg">
+                    <h3 class="text-xl font-semibold mb-4">Part 2: Comprehension Questions</h3>
+                    <p class="mb-6 text-gray-700">Based on the text above, answer the questions below. Then, click "Show Answers" to check your work.</p>
+                    <div id="comprehension-container" class="space-y-6"></div>
+                     <div class="mt-6 flex justify-center space-x-4">
+                        <button onclick="showComprehensionAnswers()" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition">Show Answers</button>
+                    </div>
+                </div>
+            </section>
+
+             <!-- Exercise 5: 10 Texts with Gaps -->
+            <section id="ex5" class="exercise-section">
+                <h2 class="text-2xl font-semibold mb-6">Exercise 5: More Texts with Gaps</h2>
+                <p class="mb-6 text-gray-700">Select a text and fill in the gaps using the provided word bank.</p>
+                <div id="multi-text-container" class="space-y-8"></div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // Data for all exercises
+        const data = {
+            gapFilling: [
+                { q: "Many people in the rapidly growing city lived in overcrowded ____.", o: ["possessions", "slums", "customs", "parcels"], a: "slums" },
+                { q: "The plane began its ____ towards the runway for landing.", o: ["ascension", "bypass", "descent", "lilt"], a: "descent" },
+                { q: "The successful launch marked the rocket's ____ into space.", o: ["ascension", "breach", "discord", "staircase"], a: "ascension" },
+                { q: "He researched his family history to learn more about his ____.", o: ["descendants", "scouts", "gunners", "credentials"], a: "descendants" },
+                { q: "After the argument, it was hard to find a sense of ____ in the house.", o: ["indifference", "equilibrium", "mitigation", "straitjacket"], a: "equilibrium" },
+                { q: "The construction crew used a large ____ to excavate the foundation.", o: ["gunner", "digger", "sidewalk", "shackled"], a: "digger" },
+                { q: "Parents try to ____ good values in their children from a young age.", o: ["instill", "surpass", "seize", "disregard"], a: "instill" },
+                { q: "You need to ____ down low to pick up the item from the bottom shelf.", o: ["squat", "claim", "jam", "endorse"], a: "squat" },
+                { q: "The ____ managed to take control of the remote town.", o: ["retreating forces", "rebel forces", "customs", "scouts"], a: "rebel forces" },
+                { q: "The ____ were ordered to move back to a safer position.", o: ["retreating forces", "rebel forces", "descendants", "possessions"], a: "retreating forces" },
+                { q: "The commander sent out ____ to gather information about the enemy's location.", o: ["gunners", "anti-aircraft gunners", "scouts", "parcels"], a: "scouts" },
+                { q: "The dark clouds suggested that a storm was ____.", o: ["remote", "legitimate", "vague", "imminent"], a: "imminent" },
+                { q: "After a long trial, the man was ____ of the crime.", o: ["acknowledged", "convicted", "validated", "endorsed"], a: "convicted" },
+                { q: "My grandfather was an ____ during the war, defending the skies.", o: ["anti-aircraft gunner", "digger", "gunner", "scout"], a: "anti-aircraft gunner" },
+                { q: "The soldier's role was a ____, responsible for operating the machine gun.", o: ["gunner", "digger", "custom", "parcel"], a: "gunner" },
+                { q: "The company ____ to have the most reliable product on the market.", o: ["claims", "overlooks", "endures", "escalates"], a: "claims" },
+                { q: "It is difficult to ____ the pain of losing a loved one.", o: ["endure", "seize", "surpass", "jam"], a: "endure" },
+                { q: "The CEO took full ____ for the company's failure.", o: ["accountability", "credentials", "indifference", "mitigation"], a: "accountability" },
+                { q: "We had to go through ____ at the airport before boarding our international flight.", o: ["customs", "slums", "possessions", "sidewalks"], a: "customs" },
+                { q: "He refused to ____ that he had made a mistake.", o: ["acknowledge", "disregard", "disseminate", "intercept"], a: "acknowledge" },
+                { q: "The authorities have the right to ____ illegal goods.", o: ["seize", "endorse", "overlook", "validate"], a: "seize" },
+                { q: "When they moved, they packed all their worldly ____ into a small van.", o: ["possessions", "parcels", "credentials", "customs"], a: "possessions" },
+                { q: "Her performance on the exam managed to ____ everyone's expectations.", o: ["surpass", "escalate", "disregard", "jam"], a: "surpass" },
+                { q: "Be careful on the ____, it's slippery after the rain.", o: ["staircase", "sidewalk", "bypass", "straitjacket"], a: "staircase" },
+                { q: "His explanation was too ____ for me to understand what he really meant.", o: ["vague", "thorough", "legitimate", "remote"], a: "vague" },
+                { q: "To avoid the traffic in the city center, we took the new ____.", o: ["bypass", "staircase", "sidewalk", "descent"], a: "bypass" },
+                { q: "She spoke with a gentle, musical ____ in her voice.", o: ["lilt", "discord", "breach", "straitjacket"], a: "lilt" },
+                { q: "The organization's goal is to ____ information about safety procedures.", o: ["disseminate", "intercept", "disregard", "seize"], a: "disseminate" },
+                { q: "The disagreement between the two countries could ____ into a full-scale conflict.", o: ["escalate", "mitigate", "endorse", "surpass"], a: "escalate" },
+                { q: "I cannot ____ this candidate because I don't agree with their policies.", o: ["endorse", "disregard", "claim", "jam"], a: "endorse" },
+                { q: "The police conducted a ____ investigation of the crime scene.", o: ["thorough", "careless", "vague", "deceptive"], a: "thorough" },
+                { q: "You need a ____ reason to be absent from the exam.", o: ["legitimate", "deceptive", "remote", "nonchalant"], a: "legitimate" },
+                { q: "Before you can access the system, you must enter your ____.", o: ["credentials", "possessions", "parcels", "customs"], a: "credentials" },
+                { q: "The advertisement was ____; the product was not as good as it claimed to be.", o: ["deceptive", "legitimate", "thorough", "careless"], a: "deceptive" },
+                { q: "This act is a serious ____ of the peace agreement.", o: ["breach", "bypass", "lilt", "mitigation"], a: "breach" },
+                { q: "There was a lot of ____ in the team, which affected their performance.", o: ["discord", "equilibrium", "lilt", "mitigation"], a: "discord" },
+                { q: "The spy agency was able to ____ the enemy's secret message.", o: ["intercept", "disseminate", "endorse", "overlook"], a: "intercept" },
+                { q: "You should not ____ the safety warnings; they are there for a reason.", o: ["disregard", "acknowledge", "validate", "claim"], a: "disregard" },
+                { q: "His ____ towards her feelings was hurtful.", o: ["indifference", "accountability", "equilibrium", "lilt"], a: "indifference" },
+                { q: "His ____ attitude towards his work resulted in many mistakes.", o: ["careless", "thorough", "nonchalant", "numb"], a: "careless" },
+                { q: "After sitting in the cold for hours, my fingers felt completely ____.", o: ["numb", "shackled", "remote", "vague"], a: "numb" },
+                { q: "He remained surprisingly ____ despite the chaos around him.", o: ["nonchalant", "numb", "careless", "shackled"], a: "nonchalant" },
+                { q: "I received several ____ in the mail today.", o: ["parcels", "customs", "slums", "possessions"], a: "parcels" },
+                { q: "They live in a ____ village, far from any major city.", o: ["remote", "vague", "legitimate", "thorough"], a: "remote" },
+                { q: "In his rush, he managed to ____ the most important detail.", o: ["overlook", "seize", "endorse", "claim"], a: "overlook" },
+                { q: "The patient was so violent that he had to be put in a ____.", o: ["straitjacket", "bypass", "sidewalk", "staircase"], a: "straitjacket" },
+                { q: "Please don't block the ____, people need to walk here.", o: ["sidewalk", "staircase", "bypass", "slum"], a: "sidewalk" },
+                { q: "The prisoner was ____ and led out of the courtroom.", o: ["shackled", "convicted", "disregarded", "acknowledged"], a: "shackled" },
+                { q: "____, the most important thing is to be honest with yourself.", o: ["Ultimately", "Carelessly", "Remotely", "Vaguely"], a: "Ultimately" },
+                { q: "The government is focused on the ____ of climate change effects.", o: ["mitigation", "breach", "discord", "ascension"], a: "mitigation" },
+                { q: "The printer will ____ if you put too much paper in it.", o: ["jam", "seize", "claim", "surpass"], a: "jam" },
+                { q: "You need to ____ your parking ticket at the machine before you leave.", o: ["validate", "disregard", "endorse", "intercept"], a: "validate" }
+            ],
+            definitions: [
+                { q: "A state of physical balance.", o: ["Discord", "Equilibrium", "Lilt", "Breach"], a: "Equilibrium" },
+                { q: "About to happen.", o: ["Remote", "Legitimate", "Imminent", "Vague"], a: "Imminent" },
+                { q: "To suffer something difficult patiently.", o: ["To endure", "To seize", "To surpass", "To escalate"], a: "To endure" },
+                { q: "The responsibility for your actions.", o: ["Indifference", "Mitigation", "Accountability", "Credentials"], a: "Accountability" },
+                { q: "To officially approve or support something.", o: ["To claim", "To endorse", "To disregard", "To acknowledge"], a: "To endorse" },
+                { q: "An act of breaking a law, agreement, or code of conduct.", o: ["Bypass", "Breach", "Custom", "Discord"], a: "Breach" },
+                { q: "To ignore or pay no attention to something.", o: ["To overlook", "To intercept", "To disregard", "To disseminate"], a: "To disregard" },
+                { q: "Packages sent by mail.", o: ["Possessions", "Credentials", "Parcels", "Customs"], a: "Parcels" },
+                { q: "Legally acceptable; lawful.", o: ["Thorough", "Deceptive", "Legitimate", "Careless"], a: "Legitimate" },
+                { q: "The act of going down.", o: ["Ascension", "Descent", "Bypass", "Mitigation"], a: "Descent" }
+            ],
+            unscramble: [
+                { q: "forces / the / city / retreating / left / the / quickly.", a: "The retreating forces left the city quickly." },
+                { q: "to / tried / the / in / children / he / instill / honesty.", a: "He tried to instill honesty in the children." },
+                { q: "must / you / your / validate / before / boarding / ticket.", a: "You must validate your ticket before boarding." },
+                { q: "a / there / of / was / serious / data / breach.", a: "There was a serious breach of data." },
+                { q: "company's / for / took / the / CEO / accountability / the / failure.", a: "The CEO took accountability for the company's failure." },
+                { q: "the / managed / to / surpass / her / all / performance / expectations.", a: "Her performance managed to surpass all expectations." },
+                { q: "was / the / information / too / be / to / vague / useful.", a: "The information was too vague to be useful." },
+                { q: "to / tried / their / they / intercept / communications.", a: "They tried to intercept their communications." },
+                { q: "was / his / toward / project / the / indifference / obvious.", a: "His indifference toward the project was obvious." },
+                { q: "the / led / shackled / away / prisoner / was.", a: "The shackled prisoner was led away." }
+            ],
+            readingGaps: {
+                text: "The situation in the remote region began to (1)______ rapidly. Rebel forces, who had been hiding in the mountains, started their (2)______ into the valleys. The government's (3)______ were not prepared for such a swift attack. The rebels' primary goal was to (4)______ control of the main supply road and (5)______ any parcels or military equipment being sent to the frontline.<br><br>An intelligence report, which was later (6)______ as authentic, warned that an attack was (7)______. However, some commanders chose to (8)______ this information, showing a (9)______ attitude that would ultimately prove costly. They failed to (10)______ the threat seriously. This was a significant (11)______ of protocol, and the lack of (12)______ for this failure led to widespread discord among the ranks.",
+                gaps: [
+                    { o: ["validate", "escalate", "endorse", "mitigate"], a: "escalate" },
+                    { o: ["ascension", "bypass", "descent", "staircase"], a: "descent" },
+                    { o: ["scouts", "descendants", "customs", "gunners"], a: "scouts" },
+                    { o: ["claim", "seize", "surpass", "instill"], a: "seize" },
+                    { o: ["intercept", "disseminate", "overlook", "jam"], a: "intercept" },
+                    { o: ["convicted", "shackled", "validated", "disregarded"], a: "validated" },
+                    { o: ["remote", "vague", "nonchalant", "imminent"], a: "imminent" },
+                    { o: ["acknowledge", "disregard", "endorse", "surpass"], a: "disregard" },
+                    { o: ["thorough", "legitimate", "careless", "numb"], a: "careless" },
+                    { o: ["acknowledge", "seize", "endure", "jam"], a: "acknowledge" },
+                    { o: ["breach", "lilt", "mitigation", "equilibrium"], a: "breach" },
+                    { o: ["indifference", "accountability", "discord", "credentials"], a: "accountability" }
+                ]
+            },
+            comprehension: [
+                { q: "What did the rebel forces do at the beginning of the events described?", a: "They began their descent from the mountains into the valleys." },
+                { q: "What was the primary objective of the rebels?", a: "Their primary goal was to seize control of the main supply road and intercept parcels and military equipment." },
+                { q: "Was there a warning about the attack?", a: "Yes, an intelligence report warned that an attack was imminent and it was validated as authentic." },
+                { q: "How did some commanders react to the warning?", a: "They chose to disregard the information, showing a careless attitude." },
+                { q: "What were the consequences of the commanders' actions?", a: "Their actions were a significant breach of protocol, which led to widespread discord among the ranks due to a lack of accountability." }
+            ],
+            multiText: [
+                {
+                    title: "Text 1: The Urban Photographer",
+                    bank: ["slums", "staircase", "sidewalk", "possessions", "to overlook", "digger", "shackled", "vague", "ultimately", "equilibrium"],
+                    text: "The urban photographer felt a strange sense of (1)______ as he walked through the city. His project was to document the contrast between the new high-rise buildings and the old (2)______. He walked down a narrow (3)______, careful not to trip over the uneven pavement. He saw a man sitting on the steps of a crumbling (4)______, his face a mask of misery as if he were (5)______ by invisible chains. The photographer had only a (6)______ idea of what he wanted to capture; it was more a feeling than a plan. He knew it was easy (7)______ the stories hidden in plain sight. In the distance, a (8)______ was noisily clearing land for another new tower. The photographer took a picture of the old man, who had few worldly (9)______ but sat with a quiet dignity. (10)______, the goal was to show the soul of the city, not just its modern facade.",
+                    answers: ["equilibrium", "slums", "sidewalk", "staircase", "shackled", "vague", "to overlook", "digger", "possessions", "ultimately"]
+                },
+                {
+                    title: "Text 2: The Critical Front",
+                    bank: ["rebel forces", "retreating forces", "gunner", "anti-aircraft gunner", "scouts", "imminent", "to endure", "numb", "straitjacket", "mitigation"],
+                    text: "The situation at the front was critical. The (1)______ had broken through the defensive line, forcing the government soldiers to become (2)______. An attack on the capital seemed (3)______. The young soldier, a machine (4)______, felt his hands go (5)______ from the cold and the fear. He and his fellow soldiers had to (6)______ freezing temperatures and constant shelling. A special team of (7)______ was sent ahead to gather intelligence. The chaos felt like a mental (8)______, tightening its grip on everyone. The commanding officer was focused on risk (9)______, trying to save as many lives as possible. High above, an (10)______ scanned the grey skies, hoping to prevent an aerial attack.",
+                    answers: ["rebel forces", "retreating forces", "imminent", "gunner", "numb", "to endure", "scouts", "straitjacket", "mitigation", "anti-aircraft gunner"]
+                },
+                 {
+                    title: "Text 3: The Tense Summit",
+                    bank: ["to escalate", "discord", "legitimate", "to endorse", "to disregard", "accountability", "breach", "deceptive", "indifference", "ultimately"],
+                    text: "The international summit was tense. There was a clear (1)______ between the two nations, and a fear that the conflict could (2)______. One president gave a speech that many found (3)______, filled with promises that seemed too good to be true. His counterpart refused to (4)______ the proposed agreement, calling it a (5)______ of international law. He warned other nations not to (6)______ the seriousness of the situation. There was a call for full (7)______ from the leaders who had started the conflict. However, the international community's initial (8)______ had allowed the problem to grow. For any progress to be made, there had to be a (9)______ government to negotiate with. (10)______, diplomacy was the only path to a peaceful resolution.",
+                    answers: ["discord", "to escalate", "deceptive", "to endorse", "breach", "to disregard", "accountability", "indifference", "legitimate", "ultimately"]
+                },
+                {
+                    title: "Text 4: The Agent's Mission",
+                    bank: ["credentials", "to intercept", "to disseminate", "remote", "bypass", "to seize", "convicted", "nonchalant", "to validate", "possessions"],
+                    text: "The agent’s mission was to infiltrate a (1)______ facility hidden in the mountains. He used false (2)______ to get past the first checkpoint. His main goal was to (3)______ a shipment of illegal weapons. He also had to (4)______ a secret message before the enemy could (5)______ it to their operatives. He had to appear calm and (6)______ to avoid suspicion. The plan was to use a forgotten service (7)______ to enter the main complex. Once inside, he would download the data needed to (8)______ the identity of his contact using a code phrase. After the mission, the criminal leader was (9)______ of numerous crimes, and all his illegal (10)______ were confiscated.",
+                    answers: ["remote", "credentials", "to seize", "to intercept", "to disseminate", "nonchalant", "bypass", "to validate", "convicted", "possessions"]
+                },
+                 {
+                    title: "Text 5: The Storyteller",
+                    bank: ["descendants", "ascension", "descent", "to instill", "to surpass", "to acknowledge", "lilt", "parcels", "shackled", "to claim"],
+                    text: "The old storyteller spoke with a gentle Irish (1)______ in her voice. She told tales of her ancestors, brave people who felt (2)______ by poverty but never by spirit. She wanted to (3)______ a sense of pride in the younger (4)______ of the family. Her stories often followed a hero's journey: the (5)______ into darkness and the eventual (6)______ into the light. She taught them that they could (7)______ any obstacle if they worked together. 'Never be afraid to (8)______ your heritage,' she would say. They had to (9)______ that life would be hard, but it was their history that made them strong. She often sent them small (10)______ with books about their family, ensuring the story was never forgotten.",
+                    answers: ["lilt", "shackled", "to instill", "descendants", "descent", "ascension", "to surpass", "to claim", "to acknowledge", "parcels"]
+                },
+                {
+                    title: "Text 6: Airport Security",
+                    bank: ["customs", "parcels", "to seize", "legitimate", "credentials", "to jam", "to validate", "bypass", "thorough", "careless"],
+                    text: "Traveling through the international airport required patience. First, you had to show your (1)______ at the check-in desk. Then came the security line, where they did a (2)______ check of your bags. A (3)______ mistake, like forgetting a bottle of water in your bag, could cause long delays. At the border, the (4)______ officer asked about the purpose of my visit. I told him I had a (5)______ business reason and showed him my invitation letter. They decided to inspect my luggage and found several sealed (6)______ I was transporting for my company. They had to open them to (7)______ their contents. An officer warned me that they would (8)______ anything that wasn't declared. Luckily, everything was in order. To avoid the long queue at the main exit, I took a lesser-known (9)______ route to the taxi stand. I was careful not to (10)______ the automatic door sensor on my way out.",
+                    answers: ["credentials", "thorough", "careless", "customs", "legitimate", "parcels", "to validate", "to seize", "bypass", "to jam"]
+                },
+                {
+                    title: "Text 7: The Election",
+                    bank: ["to endorse", "to claim", "deceptive", "to disseminate", "legitimate", "discord", "to escalate", "accountability", "ultimately", "to disregard"],
+                    text: "During the election, the candidates began to (1)______ that they were the only ones with real solutions. However, some of their advertising was highly (2)______, twisting facts to gain an advantage. This created (3)______ among the voters. One candidate, who had a (4)______ plan for economic reform, refused to (5)______ the negative tactics used by his opponents. He warned that such behavior would only (6)______ political tensions. His campaign's main goal was to (7)______ information about his actual policies. He said that there must be (8)______ for the lies being told. 'You cannot simply (9)______ the truth,' he stated. (10)______, he believed the voters would make the right choice.",
+                    answers: ["to claim", "deceptive", "discord", "legitimate", "to endorse", "to escalate", "to disseminate", "accountability", "to disregard", "ultimately"]
+                },
+                {
+                    title: "Text 8: Mountain Rescue",
+                    bank: ["imminent", "scouts", "descent", "to squat", "to endure", "numb", "mitigation", "remote", "retreating forces", "rebel forces"],
+                    text: "A rescue team was sent to a (1)______ mountain region where a group of hikers was stranded. A snowstorm was (2)______, so time was short. The lead (3)______ found a possible path for the (4)______ down the cliff face. The hikers were cold and their fingers were (5)______. They had to (6)______ extreme conditions overnight. The rescue leader knew that the key to their survival was risk (7)______. He instructed his team on how to secure the ropes. At one point, a rescuer had to (8)______ down to secure an anchor point in the rock. The operation was not about fighting (9)______ or helping (10)______; it was about saving civilian lives from the forces of nature.",
+                    answers: ["remote", "imminent", "scouts", "descent", "numb", "to endure", "mitigation", "to squat", "rebel forces", "retreating forces"]
+                },
+                {
+                    title: "Text 9: The Data Breach",
+                    bank: ["convicted", "breach", "vague", "thorough", "to acknowledge", "to overlook", "deceptive", "credentials", "indifference", "possessions"],
+                    text: "Following the data (1)______, the company hired an investigator to conduct a (2)______ internal review. The investigator found that the hacker had used stolen (3)______ to gain access. The company's initial statements were (4)______ and seemed designed to hide the truth. This (5)______ behavior angered customers who felt their trust was violated. The investigator's report forced the CEO to finally (6)______ the severity of the problem. He had tried to (7)______ early warnings from his IT department, showing a shocking level of (8)______. The person responsible was eventually caught and (9)______ of cybercrime. The company had to pay millions in damages for failing to protect their clients' digital (10)______.",
+                    answers: ["breach", "thorough", "credentials", "vague", "deceptive", "to acknowledge", "to overlook", "indifference", "convicted", "possessions"]
+                },
+                {
+                    title: "Text 10: The Artist's Journey",
+                    bank: ["equilibrium", "ascension", "lilt", "nonchalant", "to surpass", "to instill", "sidewalk", "staircase", "straitjacket", "to endure"],
+                    text: "After years of struggle, the artist finally felt a sense of (1)______ in her life. Her (2)______ in the art world had been slow and difficult. She had to (3)______ years of rejection. She tried to appear (4)______, but deep down, the criticism hurt. Her mentor tried to (5)______ in her a sense of resilience. She remembered him saying, 'Your talent will (6)______ all of this.' At times, the pressure felt like a (7)______, restricting her creativity. But one day, walking along a city (8)______, an idea struck her. She ran up the (9)______ to her studio and began to paint with a newfound freedom. Her work now had a musical (10)______, a flow that it had previously lacked.",
+                    answers: ["equilibrium", "ascension", "to endure", "nonchalant", "to instill", "to surpass", "straitjacket", "sidewalk", "staircase", "lilt"]
+                }
+            ]
+        };
+
+        // --- Tab Management ---
+        function showTab(tabId, clickedButton) {
+            // Hide all sections
+            document.querySelectorAll('.exercise-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            // Deactivate all buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show the target section
+            document.getElementById(tabId).classList.add('active');
+
+            // Activate the corresponding button
+            if (clickedButton) {
+                // If a button was clicked, activate it
+                clickedButton.classList.add('active');
+            } else {
+                // If called on load, find the button by its onclick attribute and activate it
+                // Note: The `this` in the onclick attribute needs to be part of the query selector string
+                document.querySelector(`.tab-btn[onclick="showTab('${tabId}', this)"]`).classList.add('active');
+            }
+        }
+
+        // --- Universal Feedback Functions ---
+        function applyFeedback(element, isCorrect) {
+            // Remove previous feedback
+            const existingFeedback = element.querySelector('.feedback');
+            if (existingFeedback) {
+                existingFeedback.remove();
+            }
+
+            const feedbackDiv = document.createElement('div');
+            feedbackDiv.className = `feedback ${isCorrect ? 'correct' : 'incorrect'}`;
+            feedbackDiv.textContent = isCorrect ? 'Correct' : 'Incorrect';
+            element.appendChild(feedbackDiv);
+        }
+
+        function applyUnscrambleFeedback(element, isCorrect, correctAnswer) {
+            const existingFeedback = element.querySelector('.feedback');
+            if (existingFeedback) {
+                existingFeedback.remove();
+            }
+
+            const feedbackDiv = document.createElement('div');
+            feedbackDiv.className = `feedback ${isCorrect ? 'correct' : 'incorrect'}`;
+            feedbackDiv.innerHTML = isCorrect ? 'Correct' : `Incorrect. Correct answer: <strong>${correctAnswer}</strong>`;
+            element.appendChild(feedbackDiv);
+        }
+
+        // --- Exercise 1: Gap Filling ---
+        const gapFillingContainer = document.getElementById('gap-filling-container');
+        data.gapFilling.forEach((item, index) => {
+            const questionDiv = document.createElement('div');
+            questionDiv.className = 'p-4 bg-gray-50 rounded-lg';
+            questionDiv.innerHTML = `<p class="font-medium mb-3">${index + 1}. ${item.q}</p>`;
+            const optionsDiv = document.createElement('div');
+            optionsDiv.className = 'space-y-2';
+            item.o.forEach(option => {
+                optionsDiv.innerHTML += `
+                    <label class="flex items-center space-x-3 cursor-pointer">
+                        <input type="radio" name="q_gf_${index}" value="${option}" class="form-radio h-5 w-5 text-indigo-600">
+                        <span class="text-gray-700">${option}</span>
+                    </label>
+                `;
+            });
+            questionDiv.appendChild(optionsDiv);
+            gapFillingContainer.appendChild(questionDiv);
+        });
+
+        function checkGapFilling() {
+            let score = 0;
+            data.gapFilling.forEach((item, index) => {
+                const selected = document.querySelector(`input[name="q_gf_${index}"]:checked`);
+                const questionDiv = gapFillingContainer.children[index];
+                if (selected) {
+                    const isCorrect = selected.value === item.a;
+                    if (isCorrect) score++;
+                    applyFeedback(questionDiv, isCorrect);
+                }
+            });
+            document.getElementById('gap-filling-score').textContent = `Your score: ${score} / ${data.gapFilling.length}`;
+        }
+
+        function resetGapFilling() {
+            document.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
+            document.querySelectorAll('#gap-filling-container .feedback').forEach(fb => fb.remove());
+            document.getElementById('gap-filling-score').textContent = '';
+        }
+
+        // --- Exercise 2: Definitions ---
+        const definitionsContainer = document.getElementById('definitions-container');
+        data.definitions.forEach((item, index) => {
+            const questionDiv = document.createElement('div');
+            questionDiv.className = 'p-4 bg-gray-50 rounded-lg';
+            questionDiv.innerHTML = `<p class="font-medium mb-3">${index + 1}. ${item.q}</p>`;
+            const optionsDiv = document.createElement('div');
+            optionsDiv.className = 'space-y-2';
+            item.o.forEach(option => {
+                optionsDiv.innerHTML += `
+                    <label class="flex items-center space-x-3 cursor-pointer">
+                        <input type="radio" name="q_def_${index}" value="${option}" class="form-radio h-5 w-5 text-indigo-600">
+                        <span class="text-gray-700">${option}</span>
+                    </label>
+                `;
+            });
+            questionDiv.appendChild(optionsDiv);
+            definitionsContainer.appendChild(questionDiv);
+        });
+
+        function checkDefinitions() {
+            let score = 0;
+            data.definitions.forEach((item, index) => {
+                const selected = document.querySelector(`input[name="q_def_${index}"]:checked`);
+                 const questionDiv = definitionsContainer.children[index];
+                if (selected) {
+                    const isCorrect = selected.value === item.a;
+                    if (isCorrect) score++;
+                    applyFeedback(questionDiv, isCorrect);
+                }
+            });
+            document.getElementById('definitions-score').textContent = `Your score: ${score} / ${data.definitions.length}`;
+        }
+
+        function resetDefinitions() {
+            document.querySelectorAll('#definitions-container input[type="radio"]').forEach(radio => radio.checked = false);
+            document.querySelectorAll('#definitions-container .feedback').forEach(fb => fb.remove());
+            document.getElementById('definitions-score').textContent = '';
+        }
+
+        // --- Exercise 3: Unscramble ---
+        const unscrambleContainer = document.getElementById('unscramble-container');
+        data.unscramble.forEach((item, index) => {
+            const questionDiv = document.createElement('div');
+            questionDiv.className = 'p-4 bg-gray-50 rounded-lg';
+            questionDiv.innerHTML = `
+                <p class="font-medium mb-3">${index + 1}. ${item.q}</p>
+                <input type="text" id="unscramble_ans_${index}" class="w-full mt-2" placeholder="Your answer...">
+            `;
+            unscrambleContainer.appendChild(questionDiv);
+        });
+
+        function checkUnscramble() {
+            let score = 0;
+            data.unscramble.forEach((item, index) => {
+                const inputElem = document.getElementById(`unscramble_ans_${index}`);
+                const userAnswer = inputElem.value.trim().toLowerCase().replace(/[.]/g, '');
+                const correctAnswer = item.a.trim().toLowerCase().replace(/[.]/g, '');
+                const isCorrect = userAnswer === correctAnswer;
+                if (isCorrect) score++;
+                applyUnscrambleFeedback(inputElem.parentElement, isCorrect, item.a);
+            });
+            document.getElementById('unscramble-score').textContent = `Your score: ${score} / ${data.unscramble.length}`;
+        }
+
+        function resetUnscramble() {
+            document.querySelectorAll('#unscramble-container input[type="text"]').forEach(input => input.value = '');
+            document.querySelectorAll('#unscramble-container .feedback').forEach(fb => fb.remove());
+            document.getElementById('unscramble-score').textContent = '';
+        }
+
+        // --- Exercise 4: Reading Gaps ---
+        const readingGapsContainer = document.getElementById('reading-gaps-container');
+        let readingTextHtml = data.readingGaps.text;
+        data.readingGaps.gaps.forEach((gap, index) => {
+            let optionsHtml = `<option value="">Select...</option>`;
+            gap.o.forEach(option => {
+                optionsHtml += `<option value="${option}">${option}</option>`;
+            });
+            const selectHtml = `<select id="reading_gap_${index}" class="mx-1">${optionsHtml}</select>`;
+            readingTextHtml = readingTextHtml.replace(`(${(index + 1)})______`, selectHtml);
+        });
+        readingGapsContainer.innerHTML = `<p>${readingTextHtml}</p>`;
+
+        function checkReadingGaps() {
+            let score = 0;
+            data.readingGaps.gaps.forEach((gap, index) => {
+                const selectElem = document.getElementById(`reading_gap_${index}`);
+                if (selectElem.value === gap.a) {
+                    score++;
+                    selectElem.classList.remove('border-red-500');
+                    selectElem.classList.add('border-green-500', 'border-2');
+                } else {
+                    selectElem.classList.remove('border-green-500');
+                    selectElem.classList.add('border-red-500', 'border-2');
+                }
+            });
+            document.getElementById('reading-gaps-score').textContent = `Your score: ${score} / ${data.readingGaps.gaps.length}`;
+        }
+
+        function resetReadingGaps() {
+             data.readingGaps.gaps.forEach((gap, index) => {
+                const selectElem = document.getElementById(`reading_gap_${index}`);
+                selectElem.selectedIndex = 0;
+                selectElem.classList.remove('border-red-500', 'border-green-500', 'border-2');
+            });
+            document.getElementById('reading-gaps-score').textContent = '';
+        }
+
+        // --- Exercise 5: Comprehension ---
+        const comprehensionContainer = document.getElementById('comprehension-container');
+        data.comprehension.forEach((item, index) => {
+             const qaDiv = document.createElement('div');
+             qaDiv.innerHTML = `
+                <p class="font-medium mb-2">${index + 1}. ${item.q}</p>
+                <textarea class="w-full h-20 p-2 border rounded" placeholder="Type your answer here..."></textarea>
+                <div id="comp_ans_${index}" class="hidden mt-2 p-3 bg-indigo-100 text-indigo-800 rounded-lg">
+                    <strong>Answer:</strong> ${item.a}
+                </div>
+             `;
+             comprehensionContainer.appendChild(qaDiv);
+        });
+
+        function showComprehensionAnswers() {
+            data.comprehension.forEach((item, index) => {
+                document.getElementById(`comp_ans_${index}`).classList.toggle('hidden');
+            });
+        }
+
+        // --- Multi-text Gap Filling ---
+        const multiTextContainer = document.getElementById('multi-text-container');
+        data.multiText.forEach((textItem, textIndex) => {
+            const textWrapper = document.createElement('div');
+            textWrapper.className = 'p-6 bg-gray-50 rounded-lg';
+
+            let textHtml = textItem.text;
+
+            // Simplified replacement loop
+            for(let i=1; i <= textItem.answers.length; i++){
+                let optionsHtml = `<option value="">Select...</option>`;
+                // Use a copy of the bank and shuffle for unique dropdowns
+                const shuffledBank = [...textItem.bank].sort(() => 0.5 - Math.random());
+                shuffledBank.forEach(option => {
+                    optionsHtml += `<option value="${option}">${option}</option>`;
+                });
+                const selectHtml = `<select id="mt_${textIndex}_gap_${i-1}" class="mx-1">${optionsHtml}</select>`;
+                textHtml = textHtml.replace(`(${i})______`, selectHtml);
+            }
+
+            textWrapper.innerHTML = `
+                <h3 class="text-xl font-semibold mb-2">${textItem.title}</h3>
+                <p class="mb-4 text-sm text-gray-600"><strong>Word Bank:</strong> ${textItem.bank.join(', ')}</p>
+                <div class="text-lg leading-relaxed">${textHtml}</div>
+                <div id="mt_score_${textIndex}" class="mt-4 text-lg font-semibold text-center"></div>
+                <div class="mt-4 flex justify-center space-x-4">
+                    <button onclick="checkMultiText(${textIndex})" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition">Check This Text</button>
+                    <button onclick="resetMultiText(${textIndex})" class="bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg hover:bg-gray-400 transition">Reset</button>
+                </div>
+            `;
+            multiTextContainer.appendChild(textWrapper);
+        });
+
+        function checkMultiText(textIndex) {
+            let score = 0;
+            const textData = data.multiText[textIndex];
+            textData.answers.forEach((answer, gapIndex) => {
+                const selectElem = document.getElementById(`mt_${textIndex}_gap_${gapIndex}`);
+                if (selectElem.value === answer) {
+                    score++;
+                    selectElem.classList.remove('border-red-500');
+                    selectElem.classList.add('border-green-500', 'border-2');
+                } else {
+                    selectElem.classList.remove('border-green-500');
+                    selectElem.classList.add('border-red-500', 'border-2');
+                }
+            });
+            document.getElementById(`mt_score_${textIndex}`).textContent = `Your score: ${score} / ${textData.answers.length}`;
+        }
+
+        function resetMultiText(textIndex) {
+            const textData = data.multiText[textIndex];
+            textData.answers.forEach((answer, gapIndex) => {
+                const selectElem = document.getElementById(`mt_${textIndex}_gap_${gapIndex}`);
+                selectElem.selectedIndex = 0;
+                selectElem.classList.remove('border-red-500', 'border-green-500', 'border-2');
+            });
+            document.getElementById(`mt_score_${textIndex}`).textContent = '';
+        }
+
+
+        // Initial Load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Call showTab for the first tab without a click event
+            showTab('ex1');
+        });
+
+    </script>
+</body>
+</html>
