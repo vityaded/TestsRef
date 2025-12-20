@@ -3,6 +3,16 @@ instance/
 *.sqlite
 *.db
 
+# Environments
+.venv/
+venv/
+env/
+myenv/
+
+# Secrets / certificates
+cert/
+*.pem
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.pyc
@@ -60,3 +70,11 @@ coverage.xml
 
 # Logs
 *.log
+logs/
+
+# Uploads and generated content
+app/static/uploads/
+
+# Backup templates
+templates_backup/
+templatesold/
