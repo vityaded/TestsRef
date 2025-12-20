@@ -220,7 +220,7 @@ def create_app(config_overrides=None):
     @app.context_processor
     def inject_csrf_token():
         from flask_wtf.csrf import generate_csrf
-        return dict(csrf_token=generate_csrf())
+        return dict(csrf_token=generate_csrf)
 
     with app.app_context():
         migrate_legacy_games(app)
