@@ -121,4 +121,38 @@ document.addEventListener("DOMContentLoaded", () => {
   setupFlashToasts();
   setupQuizWizard();
   setupAutocompleteInputs();
+
+  const navbar = document.getElementById("main-navbar");
+  if (navbar) {
+    let lastScrollTop = 0;
+    const delta = 5;
+    const navbarHeight = navbar.offsetHeight;
+
+    const handleScroll = () => {
+      const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
+      const atTop = currentScroll <= 0;
+
+      if (atTop) {
+        navbar.classList.add("at-top");
+      } else {
+        navbar.classList.remove("at-top");
+      }
+
+      if (Math.abs(lastScrollTop - currentScroll) <= delta) {
+        lastScrollTop = currentScroll;
+        return;
+      }
+
+      if (currentScroll > lastScrollTop && currentScroll > navbarHeight) {
+        navbar.classList.add("nav-hidden");
+      } else {
+        navbar.classList.remove("nav-hidden");
+      }
+
+      lastScrollTop = currentScroll;
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    handleScroll();
+  }
 });
