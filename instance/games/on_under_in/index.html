@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Where's the Spider?</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Basic styling for the canvas */
+        canvas {
+            background-color: #e0f2f7; /* Light blue background */
+            border: 2px solid #0284c7; /* Blue border */
+            display: block;
+            margin: 20px auto; /* Center the canvas */
+        }
+        .answer-button {
+            transition: background-color 0.2s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white p-6 rounded-lg shadow-xl text-center">
+        <h1 class="text-2xl font-bold mb-4 text-blue-700">Where's the Spider?</h1>
+        <p id="question" class="text-xl mb-4 text-gray-800">Loading game...</p>
+
+        <canvas id="gameCanvas" width="600" height="400"></canvas>
+
+        <div id="answerOptions" class="mt-4 flex flex-wrap justify-center space-x-2 space-y-2">
+            </div>
+
+        <p id="feedback" class="text-lg mt-4 font-semibold"></p>
+
+        <button id="nextButton" class="mt-4 px-6 py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 hidden">Next Question</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const questionElement = document.getElementById('question');
+        const answerOptionsElement = document.getElementById('answerOptions');
+        const feedbackElement = document.getElementById('feedback');
+        const nextButton = document.getElementById('nextButton'); // Get the next button element
+
+        // Define the static objects in the scene for drawing and reference
+        const sceneObjects = [];
+
+        // Define possible positions for the spider, including the correct preposition and reference object type
+        // The spider size will be used to adjust its drawing position slightly
+        const spiderSize = 8;
+        const possibleSpiderPositions = [
+            { x: 200, y: canvas.height - 110 - spiderSize, preposition: 'on', reference: 'seesaw' }, // On the seesaw plank
+            { x: 200, y: canvas.height - 50 - spiderSize, preposition: 'under', reference: 'seesaw' }, // Under the seesaw base
+            { x: 470, y: canvas.height - 90 - spiderSize, preposition: 'on', reference: 'slide' }, // On the slide surface
+            { x: 590, y: canvas.height - 50 - spiderSize, preposition: 'by', reference: 'net' }, // By the net post
+            { x: 60, y: canvas.height - 180, preposition: 'in', reference: 'tree' }, // In the tree (on the trunk)
+            { x: 350, y: canvas.height - 100 - spiderSize, preposition: 'on', reference: 'swing' } // On the swing seat
+        ];
+
+        let availableQuestions = []; // Array to hold questions that haven't been asked yet
+        let currentQuestion = null; // Holds the current question details (spider position, correct answer sentence)
+
+        // Function to draw a rectangle
+        function drawRect(x, y, width, height, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, width, height);
+        }
+
+        // Function to draw a circle
+        function drawCircle(x, y, radius, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+         // Function to draw a polygon (for more complex shapes)
+        function drawPolygon(points, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Function to draw a simple spider
+        function drawSpider(x, y, size, color) {
+            ctx.fillStyle = color;
+
+            // Body (larger circle)
+            ctx.beginPath();
+            ctx.arc(x, y, size * 1.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Head (smaller circle)
+            ctx.beginPath();
+            ctx.arc(x + size * 1.5, y, size * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Legs (simple lines)
+            ctx.lineWidth = size / 4;
+            ctx.strokeStyle = color;
+            ctx.beginPath();
+            // Left legs
+            ctx.moveTo(x - size, y - size); ctx.lineTo(x - size * 2, y - size * 2);
+            ctx.moveTo(x - size, y); ctx.lineTo(x - size * 2, y);
+            ctx.moveTo(x - size, y + size); ctx.lineTo(x - size * 2, y + size * 2);
+            // Right legs
+            ctx.moveTo(x + size, y - size); ctx.lineTo(x + size * 2, y - size * 2);
+            ctx.moveTo(x + size, y); ctx.lineTo(x + size * 2, y);
+            ctx.moveTo(x + size, y + size); ctx.lineTo(x + size * 2, y + size + 2);
+            ctx.stroke();
+        }
+
+        // Function to draw the entire scene with static objects and the current spider
+        function drawScene() {
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            sceneObjects.length = 0; // Clear static objects array for redrawing
+
+            // Draw the ground
+            drawRect(0, canvas.height - 50, canvas.width, 50, '#a3e635'); // Green ground
+
+            // Draw the seesaw (more detailed)
+            drawRect(170, canvas.height - 100, 10, 50, '#c2410c'); // Left leg
+            drawRect(220, canvas.height - 100, 10, 50, '#c2410c'); // Right leg
+            drawRect(160, canvas.height - 110, 90, 10, '#c2410c'); // Base connecting legs
+            ctx.save(); // Save current context state
+            ctx.translate(200, canvas.height - 110); // Move origin to pivot point
+            ctx.rotate(-Math.PI / 12); // Rotate slightly
+            drawRect(-100, -10, 200, 20, '#c2410c'); // Brown plank
+            ctx.restore(); // Restore context state
+            const seesaw = { type: 'seesaw', x: 160, y: canvas.height - 110, width: 90, height: 60 }; // Approximate bounding box for clicks
+            sceneObjects.push(seesaw);
+
+
+            // Draw the slide (more detailed)
+            drawRect(350, canvas.height - 150, 20, 100, '#60a5fa'); // Left support
+            drawRect(530, canvas.height - 150, 20, 100, '#60a5fa'); // Right support
+            drawRect(350, canvas.height - 150, 200, 20, '#60a5fa'); // Top horizontal bar
+            ctx.beginPath();
+            ctx.moveTo(550, canvas.height - 130); // Start of slide surface
+            ctx.lineTo(370, canvas.height - 50); // End of slide surface
+            ctx.lineWidth = 30; // Width of the slide surface
+            ctx.strokeStyle = '#60a5fa'; // Blue slide color
+            ctx.stroke();
+             const slide = { type: 'slide', x: 350, y: canvas.height - 150, width: 200, height: 100 }; // Approximate bounding box
+             sceneObjects.push(slide);
+
+
+            // Draw the net (more detailed - representing goal posts and net area)
+            drawRect(500, canvas.height - 150, 10, 100, '#9ca3af'); // Left post
+            drawRect(570, canvas.height - 150, 10, 100, '#9ca3af'); // Right post
+            drawRect(500, canvas.height - 150, 80, 10, '#9ca3af'); // Top bar
+            // Simple representation of the net mesh
+            ctx.strokeStyle = '#cccccc'; // Lighter gray for net lines
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for(let i = 0; i < 7; i++) {
+                ctx.moveTo(500, canvas.height - 140 + i * 15);
+                ctx.lineTo(580, canvas.height - 140 + i * 15);
+                ctx.moveTo(500 + i * 10, canvas.height - 150);
+                ctx.lineTo(500 + i * 10, canvas.height - 50);
+            }
+            ctx.stroke();
+            const net = { type: 'net', x: 500, y: canvas.height - 150, width: 80, height: 100 }; // Approximate bounding box
+            sceneObjects.push(net);
+
+             // Draw a tree (more detailed)
+            drawRect(40, canvas.height - 250, 40, 200, '#78350f'); // Brown trunk
+            // Leaves (multiple circles)
+            drawCircle(60, canvas.height - 250, 40, '#16a34a');
+            drawCircle(30, canvas.height - 230, 35, '#16a34a');
+            drawCircle(90, canvas.height - 230, 35, '#16a34a');
+             const tree = { type: 'tree', x: 20, y: canvas.height - 290, width: 100, height: 240 }; // Approximate bounding box
+             sceneObjects.push(tree);
+
+            // Draw the swing (simplified)
+            drawRect(300, canvas.height - 200, 10, 150, '#c2410c'); // Left support
+            drawRect(400, canvas.height - 200, 10, 150, '#c2410c'); // Right support
+            drawRect(300, canvas.height - 200, 110, 10, '#c2410c'); // Top bar
+            ctx.strokeStyle = '#000000'; // Black ropes
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(320, canvas.height - 190);
+            ctx.lineTo(320, canvas.height - 100);
+            ctx.moveTo(380, canvas.height - 190);
+            ctx.lineTo(380, canvas.height - 100);
+            ctx.stroke();
+            drawRect(310, canvas.height - 100, 80, 10, '#ffbf00'); // Yellow seat
+            const swing = { type: 'swing', x: 300, y: canvas.height - 200, width: 110, height: 160 }; // Approximate bounding box
+            sceneObjects.push(swing);
+
+            // Draw the spider only if a question is active
+            if (currentQuestion) {
+                drawSpider(currentQuestion.spiderPosition.x, currentQuestion.spiderPosition.y, spiderSize, '#000000'); // Black spider
+            }
+        }
+
+        // Function to shuffle an array (Fisher-Yates algorithm)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]]; // Swap elements
+            }
+            return array;
+        }
+
+        // Function to generate answer options (full sentences)
+        function generateAnswerOptions(correctPreposition, referenceObjectType) {
+            const allPrepositions = ['on', 'in', 'under', 'by'];
+            let options = [`It's ${correctPreposition} the ${referenceObjectType}.`]; // Start with the correct sentence
+
+            // Add two incorrect sentences
+            while (options.length < 3) {
+                const randomIndex = Math.floor(Math.random() * allPrepositions.length);
+                const randomPreposition = allPrepositions[randomIndex];
+                const incorrectSentence = `It's ${randomPreposition} the ${referenceObjectType}.`;
+                // Ensure the incorrect sentence is not the correct one and not already in options
+                if (randomPreposition !== correctPreposition && !options.includes(incorrectSentence)) {
+                    options.push(incorrectSentence);
+                }
+            }
+
+            return shuffleArray(options); // Shuffle the options
+        }
+
+        // Function to set up and display answer buttons
+        function displayAnswerOptions(options) {
+            answerOptionsElement.innerHTML = ''; // Clear previous options
+            options.forEach(option => {
+                const button = document.createElement('button');
+                button.textContent = option;
+                button.className = 'answer-button px-6 py-2 bg-gray-300 text-gray-800 rounded-lg shadow hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50';
+                button.addEventListener('click', handleAnswerClick);
+                answerOptionsElement.appendChild(button);
+            });
+        }
+
+        // Function to handle answer button clicks
+        function handleAnswerClick(event) {
+            const selectedAnswer = event.target.textContent;
+
+            // Compare the selected sentence to the correct sentence stored in currentQuestion
+            if (selectedAnswer === currentQuestion.correctAnswerSentence) {
+                feedbackElement.textContent = 'Correct!';
+                feedbackElement.className = 'text-lg mt-4 font-semibold text-green-700'; // Green text for correct
+                // Disable answer buttons after a correct answer
+                 Array.from(answerOptionsElement.children).forEach(button => button.disabled = true);
+                 nextButton.classList.remove('hidden'); // Show the next button
+
+            } else {
+                feedbackElement.textContent = 'Try again.';
+                feedbackElement.className = 'text-lg mt-4 font-semibold text-red-700'; // Red text for incorrect
+            }
+        }
+
+        // Function to generate a new question
+        function generateQuestion() {
+            // Clear feedback
+            feedbackElement.textContent = '';
+            nextButton.classList.add('hidden'); // Hide the next button at the start of a new question
+
+            // Check if there are available questions
+            if (availableQuestions.length === 0) {
+                questionElement.textContent = "You finished all the questions! Great job!";
+                answerOptionsElement.innerHTML = ''; // Hide answer options
+                // Optional: Reset the game after a delay or show a restart button
+                // setTimeout(resetGame, 5000); // Example: reset after 5 seconds
+                return; // Stop generating questions
+            }
+
+            // Randomly select an index from the available questions
+            const randomIndex = Math.floor(Math.random() * availableQuestions.length);
+
+            // Get the selected question data and remove it from the available list
+            const nextQuestionData = availableQuestions.splice(randomIndex, 1)[0];
+
+            // Find the reference object based on its type (not strictly needed for drawing but good for logic)
+            const referenceObject = sceneObjects.find(obj => obj.type === nextQuestionData.reference);
+             if (!referenceObject) {
+                 questionElement.textContent = `Error: Reference object '${nextQuestionData.reference}' not found.`;
+                 return;
+            }
+
+
+            // Set the current question details, including the full correct sentence
+            currentQuestion = {
+                spiderPosition: nextQuestionData, // Contains x, y, preposition, reference
+                correctAnswerSentence: `It's ${nextQuestionData.preposition} the ${nextQuestionData.reference}.`, // Store the full correct sentence
+                referenceObjectType: nextQuestionData.reference // Store the type for generating incorrect sentences
+            };
+
+            // Draw the scene with the spider in the new position
+            drawScene();
+
+            // Update the question text
+            questionElement.textContent = `Where's the spider?`; // Simple question
+
+            // Generate and display answer options (full sentences)
+            const options = generateAnswerOptions(currentQuestion.spiderPosition.preposition, currentQuestion.referenceObjectType);
+            displayAnswerOptions(options);
+
+            // Re-enable answer buttons
+            Array.from(answerOptionsElement.children).forEach(button => button.disabled = false);
+        }
+
+        // Function to reset the game (optional)
+        function resetGame() {
+            availableQuestions = [...possibleSpiderPositions]; // Reset available questions
+            generateQuestion(); // Start a new round
+        }
+
+        // Add event listener for the next button
+        nextButton.addEventListener('click', generateQuestion);
+
+
+        // Initial setup
+        drawScene(); // Draw the scene without a spider initially
+        availableQuestions = [...possibleSpiderPositions]; // Initialize available questions
+        generateQuestion(); // Start the first question
+
+    </script>
+
+</body>
+</html>

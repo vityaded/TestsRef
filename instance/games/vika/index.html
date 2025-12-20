@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotel English Exercises</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            color: #334155;
+        }
+        .container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: #ffffff;
+            border-radius: 1.5rem; /* More rounded corners */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        h1, h2 {
+            color: #1e293b;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+        }
+        h1 {
+            font-size: 2.5rem;
+            text-align: center;
+        }
+        h2 {
+            font-size: 1.75rem;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+            margin-top: 2rem;
+        }
+        .dialogue-gap-input {
+            border: 1px solid #cbd5e1;
+            border-radius: 0.5rem;
+            padding: 0.25rem 0.5rem;
+            width: 120px; /* Fixed width for consistency */
+            text-align: center;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+        .dialogue-gap-input.correct {
+            border-color: #10b981; /* Green */
+            background-color: #ecfdf5;
+        }
+        .dialogue-gap-input.incorrect {
+            border-color: #ef4444; /* Red */
+            background-color: #fef2f2;
+        }
+        .check-button {
+            background-color: #4f46e5; /* Indigo */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem; /* More rounded */
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .check-button:hover {
+            background-color: #4338ca; /* Darker indigo */
+            transform: translateY(-1px);
+        }
+        .check-button:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+        .match-select {
+            border: 1px solid #cbd5e1;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            width: 100%;
+            background-color: white;
+            transition: border-color 0.2s;
+        }
+        .match-select.correct {
+            border-color: #10b981;
+            background-color: #ecfdf5;
+        }
+        .match-select.incorrect {
+            border-color: #ef4444;
+            background-color: #fef2f2;
+        }
+        .draggable-item {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: background-color 0.2s, transform 0.2s;
+        }
+        .draggable-item:hover {
+            background-color: #f0f4f8;
+        }
+        .draggable-item.dragging {
+            opacity: 0.5;
+            border-style: dashed;
+        }
+        .draggable-item.correct-order {
+            background-color: #d1fae5; /* Light green */
+            border-color: #10b981;
+        }
+        .draggable-item.incorrect-order {
+            background-color: #fee2e2; /* Light red */
+            border-color: #ef4444;
+        }
+        .drag-handle {
+            cursor: grab;
+            margin-right: 0.5rem;
+            font-size: 1.25rem;
+            color: #64748b;
+        }
+        textarea {
+            border: 1px solid #cbd5e1;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            width: 100%;
+            min-height: 120px;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #6366f1; /* Indigo focus */
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+        .feedback-message {
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: #475569;
+        }
+        .feedback-message.correct {
+            color: #10b981;
+            font-weight: 500;
+        }
+        .feedback-message.incorrect {
+            color: #ef4444;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-6 md:p-8">
+    <div class="container">
+        <h1>Hotel English Exercises</h1>
+        <p class="text-center mb-8 text-lg text-slate-600">Practice your English with these interactive hotel dialogues and exercises.</p>
+
+        <!-- Fill-in-the-gaps -->
+        <section id="fill-the-gaps" class="mb-12">
+            <h2>1. Fill-in-the-Gaps</h2>
+            <p class="mb-4 text-slate-700">Read the dialogues and fill in the blanks with the most appropriate words or phrases.</p>
+
+            <div class="bg-blue-50 p-6 rounded-xl shadow-md mb-8">
+                <h3 class="font-semibold text-xl text-blue-800 mb-4">Dialogue 1: Morning Troubles</h3>
+                <p class="mb-2"><span class="font-bold">Characters:</span> Mark (Front Desk Agent), Sarah (Hotel Guest, Room 405)</p>
+                <p class="mb-4"><span class="font-bold">Setting:</span> The front desk of "The Grandview Hotel"</p>
+
+                <p><span class="font-semibold text-blue-700">Mark:</span> Good morning! Welcome to The Grandview Hotel. How can I <input type="text" id="gap1_1" class="dialogue-gap-input"> you today?</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> Good morning. I'm Sarah Miller, in room 405. I'm afraid I'm having a few issues with my room this morning.</p>
+                <p><span class="font-semibold text-blue-700">Mark:</span> Oh, I'm sorry to hear that, Ms. Miller. Please tell me what's <input type="text" id="gap1_2" class="dialogue-gap-input"> on.</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> Well, first off, the toilet seems to be <input type="text" id="gap1_3" class="dialogue-gap-input">. I flushed it, and the water just stayed there. It's not overflowing, thankfully, but it's definitely not draining properly.</p>
+                <p><span class="font-semibold text-blue-700">Mark:</span> I understand. A clogged toilet can be quite frustrating. I'll immediately call our maintenance <input type="text" id="gap1_4" class="dialogue-gap-input"> to take a look at that for you. They're usually very quick.</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> That would be great, thank you. And while we're on the subject of the bathroom, the showerhead isn't working correctly. The water pressure is incredibly <input type="text" id="gap1_5" class="dialogue-gap-input">, and it's spraying in all directions except where it should. It's more of a mist than a shower!</p>
+                <p><span class="font-semibold text-blue-700">Mark:</span> Low water pressure and a faulty showerhead, got it. I'll add that to the maintenance <input type="text" id="gap1_6" class="dialogue-gap-input"> as well. It sounds like it might need a good cleaning or even a replacement. Anything else I can assist you with?</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> Yes, there is. The air conditioning unit in my room is making a strange rattling <input type="text" id="gap1_7" class="dialogue-gap-input">. It's been doing it since last night, and it's quite loud, especially when I'm trying to sleep. It kept me up for a good portion of the night.</p>
+                <p><span class="font-semibold text-blue-700">Mark:</span> A rattling AC unit, that's definitely not <input type="text" id="gap1_8" class="dialogue-gap-input"> for a good night's sleep. We'll have our technicians check that right away. It could be a loose part or something similar.</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> I hope so. And one more thing, I noticed that the mini-fridge isn't getting <input type="text" id="gap1_9" class="dialogue-gap-input">. I put some drinks in there last night, and they're still at room temperature.</p>
+                <p><span class="font-semibold text-blue-700">Mark:</span> The mini-fridge isn't cooling? I apologize for that inconvenience, Ms. Miller. Sometimes they just need to be unplugged and plugged back in to reset, but if that doesn't <input type="text" id="gap1_10" class="dialogue-gap-input">, we can have a look or even replace it if necessary.</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> That would be helpful. So, to recap, that's a clogged toilet, a faulty showerhead, a rattling air conditioner, and a warm mini-fridge. Quite a <input type="text" id="gap1_11" class="dialogue-gap-input">, I'm afraid!</p>
+                <p><span class="font-semibold text-blue-700">Mark:</span> No need to apologize, Ms. Miller. We want your stay to be as comfortable as possible. I've noted all these issues. Our maintenance team will be up to your room, 405, within the next 15-20 minutes, starting with the toilet as that's usually the most urgent. Would you prefer to be in the room when they arrive, or would you like them to enter with a <input type="text" id="gap1_12" class="dialogue-gap-input"> key if you're out?</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> I'll actually be heading out for breakfast soon, so if they could use the master key, that would be <input type="text" id="gap1_13" class="dialogue-gap-input">. Just leave a note or let me know at the desk when everything's fixed.</p>
+                <p><span class="font-semibold text-blue-700">Mark:</span> Absolutely. We'll leave a note in your room to confirm all repairs have been completed. And please, if anything else comes up, don't <input type="text" id="gap1_14" class="dialogue-gap-input"> to call the front desk or come down in person. We're here 24/7.</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> Thank you, Mark. I really appreciate your help and how quickly you're addressing these problems.</p>
+                <p><span class="font-semibold text-blue-700">Mark:</span> It's our pleasure, Ms. Miller. We strive to ensure all our guests have a pleasant and trouble-free <input type="text" id="gap1_15" class="dialogue-gap-input">. Enjoy your breakfast!</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> I will, thanks!</p>
+                <button onclick="checkGaps('dialogue1')" class="check-button mt-6">Check Dialogue 1 Answers</button>
+            </div>
+
+            <div class="bg-blue-50 p-6 rounded-xl shadow-md">
+                <h3 class="font-semibold text-xl text-blue-800 mb-4">Dialogue 2: More Hotel Hurdles</h3>
+                <p class="mb-2"><span class="font-bold">Characters:</span> Sarah (The Hotel Tenant), Maria (The Front Desk Agent)</p>
+                <p class="mb-4"><span class="font-bold">Setting:</span> The front desk of "The Grandview Hotel" (later the same day)</p>
+
+                <p><span class="font-semibold text-blue-700">Maria:</span> Good afternoon! Welcome back, Ms. Miller. How's everything <input type="text" id="gap2_1" class="dialogue-gap-input"> after our maintenance visit this morning?</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> Good afternoon, Maria. Well, that's what I wanted to talk about, actually. Some things are better, but I've run into a couple more issues.</p>
+                <p><span class="font-semibold text-blue-700">Maria:</span> Oh dear, I'm sorry to hear that. Please, tell me what's wrong. Did maintenance not <input type="text" id="gap2_2" class="dialogue-gap-input"> everything?</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> They did a good job with the toilet and the showerhead; those are working perfectly now, so thank you for that. And the mini-fridge is finally cold, which is great. However, the air conditioning is still making that rattling noise. It's not as loud as before, but it's definitely still there, and it's quite <input type="text" id="gap2_3" class="dialogue-gap-input">.</p>
+                <p><span class="font-semibold text-blue-700">Maria:</span> I see. So the AC unit still needs attention. I'll make a note to send someone back up immediately. It sounds like they might need to <input type="text" id="gap2_4" class="dialogue-gap-input"> a bit more time with it. My apologies that wasn't fully resolved.</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> No worries. But then there's something new, which is a bit more concerning. The Wi-Fi in my room keeps <input type="text" id="gap2_5" class="dialogue-gap-input"> out. It connects for a few minutes, then disconnects, then reconnects again. It's making it impossible to get any work done. I've tried restarting my laptop and my phone, but it's the same problem.</p>
+                <p><span class="font-semibold text-blue-700">Maria:</span> The Wi-Fi is intermittent? That's certainly frustrating, especially if you need to work. Let me check our system. Sometimes, a specific router might be acting up, or perhaps your device isn't connecting to the strongest <input type="text" id="gap2_6" class="dialogue-gap-input">. Have you tried connecting to "GrandviewGuest_Backup" if that option appears?</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> I haven't seen a "Backup" option, just the main "GrandviewGuest" one. It shows full signal strength when it's connected, but it just <input type="text" id="gap2_7" class="dialogue-gap-input"> out randomly.</p>
+                <p><span class="font-semibold text-blue-700">Maria:</span> Alright, I'll log a ticket with our IT department right away. They can often diagnose these issues remotely, or they might need to <input type="text" id="gap2_8" class="dialogue-gap-input"> something on their end. This is a top priority, especially given how important internet access is nowadays.</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> It really is. And finally, I just got back to my room, and the electronic key card isn't <input type="text" id="gap2_9" class="dialogue-gap-input">. I tried it several times, and the light just stays red. I had to wait for a cleaner to let me in.</p>
+                <p><span class="font-semibold text-blue-700">Maria:</span> Oh, that's completely unacceptable! I am so sorry about that, Ms. Miller. Key cards can sometimes deactivate, especially if they've been near a mobile phone or another electronic device. Let me <input type="text" id="gap2_10" class="dialogue-gap-input"> you a brand new one right now.</p>
+                <p><span class="font-semibold text-blue-700">Maria:</span> Here you go. This one should work perfectly. Please try it immediately, and if there's any issue at all, come straight back <input type="text" id="gap2_11" class="dialogue-gap-input">. And again, my sincere apologies for all these inconveniences. It sounds like you've had quite a frustrating day.</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> Thank you, Maria. I appreciate it. So, just to confirm: the AC still needs fixing, the Wi-Fi is unstable, and I have a new <input type="text" id="gap2_12" class="dialogue-gap-input"> card.</p>
+                <p><span class="font-semibold text-blue-700">Maria:</span> That's correct, Ms. Miller. I've personally escalated the AC and Wi-Fi issues. Our team will get on them right away. Is there anything else I can do for you right now, perhaps offer you a complimentary drink while you wait, or something <input type="text" id="gap2_13" class="dialogue-gap-input">?</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> That's very kind, but I just want to get these things <input type="text" id="gap2_14" class="dialogue-gap-input">. I hope they can fix the Wi-Fi quickly; I really need to send some emails.</p>
+                <p><span class="font-semibold text-blue-700">Maria:</span> We understand completely. We'll do our absolute best to resolve everything as fast as possible. We'll send a text message to your phone when the Wi-Fi is confirmed stable and the AC unit is fixed, if that's okay?</p>
+                <p><span class="font-semibold text-blue-700">Sarah:</span> Yes, that would be great. Thank you, Maria, for being so helpful.</p>
+                <p><span class="font-semibold text-blue-700">Maria:</span> It's my pleasure, Ms. Miller. We want you to have a comfortable and enjoyable stay. Please don't hesitate to <input type="text" id="gap2_15" class="dialogue-gap-input"> out if anything else comes up.</p>
+                <button onclick="checkGaps('dialogue2')" class="check-button mt-6">Check Dialogue 2 Answers</button>
+            </div>
+        </section>
+
+        <!-- Vocabulary Match -->
+        <section id="vocabulary-match" class="mb-12">
+            <h2>2. Vocabulary Match</h2>
+            <p class="mb-4 text-slate-700">Match the words/phrases from the dialogues with their definitions.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div id="words-list" class="flex flex-col gap-3">
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg shadow-sm">
+                        <span class="font-medium text-gray-800">1. Clogged</span>
+                        <select id="match_1" class="match-select">
+                            <option value="">Select a definition</option>
+                            <option value="a">A small problem or trouble.</option>
+                            <option value="b">To try very hard to achieve something.</option>
+                            <option value="c">Not working properly; defective.</option>
+                            <option value="d">To solve a problem or difficulty.</option>
+                            <option value="e">Making a rapid series of short, sharp knocking sounds.</option>
+                            <option value="f">Blocked; stopped up.</option>
+                            <option value="g">Not continuous or steady; stopping and starting.</option>
+                            <option value="h">To be reluctant or pause before doing something.</option>
+                            <option value="i">Raised to a higher level; made more serious or intense.</option>
+                            <option value="j">Too bad to be allowed, tolerated, or accepted.</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg shadow-sm">
+                        <span class="font-medium text-gray-800">2. Faulty</span>
+                        <select id="match_2" class="match-select">
+                            <option value="">Select a definition</option>
+                            <option value="a">A small problem or trouble.</option>
+                            <option value="b">To try very hard to achieve something.</option>
+                            <option value="c">Not working properly; defective.</option>
+                            <option value="d">To solve a problem or difficulty.</option>
+                            <option value="e">Making a rapid series of short, sharp knocking sounds.</option>
+                            <option value="f">Blocked; stopped up.</option>
+                            <option value="g">Not continuous or steady; stopping and starting.</option>
+                            <option value="h">To be reluctant or pause before doing something.</option>
+                            <option value="i">Raised to a higher level; made more serious or intense.</option>
+                            <option value="j">Too bad to be allowed, tolerated, or accepted.</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg shadow-sm">
+                        <span class="font-medium text-gray-800">3. Rattling noise</span>
+                        <select id="match_3" class="match-select">
+                            <option value="">Select a definition</option>
+                            <option value="a">A small problem or trouble.</option>
+                            <option value="b">To try very hard to achieve something.</option>
+                            <option value="c">Not working properly; defective.</option>
+                            <option value="d">To solve a problem or difficulty.</option>
+                            <option value="e">Making a rapid series of short, sharp knocking sounds.</option>
+                            <option value="f">Blocked; stopped up.</option>
+                            <option value="g">Not continuous or steady; stopping and starting.</option>
+                            <option value="h">To be reluctant or pause before doing something.</option>
+                            <option value="i">Raised to a higher level; made more serious or intense.</option>
+                            <option value="j">Too bad to be allowed, tolerated, or accepted.</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg shadow-sm">
+                        <span class="font-medium text-gray-800">4. Intermittent</span>
+                        <select id="match_4" class="match-select">
+                            <option value="">Select a definition</option>
+                            <option value="a">A small problem or trouble.</option>
+                            <option value="b">To try very hard to achieve something.</option>
+                            <option value="c">Not working properly; defective.</option>
+                            <option value="d">To solve a problem or difficulty.</option>
+                            <option value="e">Making a rapid series of short, sharp knocking sounds.</option>
+                            <option value="f">Blocked; stopped up.</option>
+                            <option value="g">Not continuous or steady; stopping and starting.</option>
+                            <option value="h">To be reluctant or pause before doing something.</option>
+                            <option value="i">Raised to a higher level; made more serious or intense.</option>
+                            <option value="j">Too bad to be allowed, tolerated, or accepted.</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg shadow-sm">
+                        <span class="font-medium text-gray-800">5. Escalated</span>
+                        <select id="match_5" class="match-select">
+                            <option value="">Select a definition</option>
+                            <option value="a">A small problem or trouble.</option>
+                            <option value="b">To try very hard to achieve something.</option>
+                            <option value="c">Not working properly; defective.</option>
+                            <option value="d">To solve a problem or difficulty.</option>
+                            <option value="e">Making a rapid series of short, sharp knocking sounds.</option>
+                            <option value="f">Blocked; stopped up.</option>
+                            <option value="g">Not continuous or steady; stopping and starting.</option>
+                            <option value="h">To be reluctant or pause before doing something.</option>
+                            <option value="i">Raised to a higher level; made more serious or intense.</option>
+                            <option value="j">Too bad to be allowed, tolerated, or accepted.</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg shadow-sm">
+                        <span class="font-medium text-gray-800">6. Inconvenience</span>
+                        <select id="match_6" class="match-select">
+                            <option value="">Select a definition</option>
+                            <option value="a">A small problem or trouble.</option>
+                            <option value="b">To try very hard to achieve something.</option>
+                            <option value="c">Not working properly; defective.</option>
+                            <option value="d">To solve a problem or difficulty.</option>
+                            <option value="e">Making a rapid series of short, sharp knocking sounds.</option>
+                            <option value="f">Blocked; stopped up.</option>
+                            <option value="g">Not continuous or steady; stopping and starting.</option>
+                            <option value="h">To be reluctant or pause before doing something.</option>
+                            <option value="i">Raised to a higher level; made more serious or intense.</option>
+                            <option value="j">Too bad to be allowed, tolerated, or accepted.</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg shadow-sm">
+                        <span class="font-medium text-gray-800">7. Unacceptable</span>
+                        <select id="match_7" class="match-select">
+                            <option value="">Select a definition</option>
+                            <option value="a">A small problem or trouble.</option>
+                            <option value="b">To try very hard to achieve something.</option>
+                            <option value="c">Not working properly; defective.</option>
+                            <option value="d">To solve a problem or difficulty.</option>
+                            <option value="e">Making a rapid series of short, sharp knocking sounds.</option>
+                            <option value="f">Blocked; stopped up.</option>
+                            <option value="g">Not continuous or steady; stopping and starting.</option>
+                            <option value="h">To be reluctant or pause before doing something.</option>
+                            <option value="i">Raised to a higher level; made more serious or intense.</option>
+                            <option value="j">Too bad to be allowed, tolerated, or accepted.</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg shadow-sm">
+                        <span class="font-medium text-gray-800">8. Resolve</span>
+                        <select id="match_8" class="match-select">
+                            <option value="">Select a definition</option>
+                            <option value="a">A small problem or trouble.</option>
+                            <option value="b">To try very hard to achieve something.</option>
+                            <option value="c">Not working properly; defective.</option>
+                            <option value="d">To solve a problem or difficulty.</option>
+                            <option value="e">Making a rapid series of short, sharp knocking sounds.</option>
+                            <option value="f">Blocked; stopped up.</option>
+                            <option value="g">Not continuous or steady; stopping and starting.</option>
+                            <option value="h">To be reluctant or pause before doing something.</option>
+                            <option value="i">Raised to a higher level; made more serious or intense.</option>
+                            <option value="j">Too bad to be allowed, tolerated, or accepted.</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg shadow-sm">
+                        <span class="font-medium text-gray-800">9. Hesitate</span>
+                        <select id="match_9" class="match-select">
+                            <option value="">Select a definition</option>
+                            <option value="a">A small problem or trouble.</option>
+                            <option value="b">To try very hard to achieve something.</option>
+                            <option value="c">Not working properly; defective.</option>
+                            <option value="d">To solve a problem or difficulty.</option>
+                            <option value="e">Making a rapid series of short, sharp knocking sounds.</option>
+                            <option value="f">Blocked; stopped up.</option>
+                            <option value="g">Not continuous or steady; stopping and starting.</option>
+                            <option value="h">To be reluctant or pause before doing something.</option>
+                            <option value="i">Raised to a higher level; made more serious or intense.</option>
+                            <option value="j">Too bad to be allowed, tolerated, or accepted.</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg shadow-sm">
+                        <span class="font-medium text-gray-800">10. Strive</span>
+                        <select id="match_10" class="match-select">
+                            <option value="">Select a definition</option>
+                            <option value="a">A small problem or trouble.</option>
+                            <option value="b">To try very hard to achieve something.</option>
+                            <option value="c">Not working properly; defective.</option>
+                            <option value="d">To solve a problem or difficulty.</option>
+                            <option value="e">Making a rapid series of short, sharp knocking sounds.</option>
+                            <option value="f">Blocked; stopped up.</option>
+                            <option value="g">Not continuous or steady; stopping and starting.</option>
+                            <option value="h">To be reluctant or pause before doing something.</option>
+                            <option value="i">Raised to a higher level; made more serious or intense.</option>
+                            <option value="j">Too bad to be allowed, tolerated, or accepted.</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <button onclick="checkVocabularyMatch()" class="check-button mt-6">Check Vocabulary Match</button>
+        </section>
+
+        <!-- Comprehension Questions -->
+        <section id="comprehension-questions" class="mb-12">
+            <h2>3. Comprehension Questions</h2>
+            <p class="mb-4 text-slate-700">Answer the following questions based on the dialogues.</p>
+            <div class="space-y-6">
+                <div>
+                    <p class="font-medium mb-2">1. What were the initial four problems Sarah reported to Mark?</p>
+                    <textarea id="q1" placeholder="Your answer here..."></textarea>
+                </div>
+                <div>
+                    <p class="font-medium mb-2">2. Which of Sarah's problems were successfully resolved after the first maintenance visit?</p>
+                    <textarea id="q2" placeholder="Your answer here..."></textarea>
+                </div>
+                <div>
+                    <p class="font-medium mb-2">3. What was the "new" problem Sarah encountered in the second dialogue?</p>
+                    <textarea id="q3" placeholder="Your answer here..."></textarea>
+                </div>
+                <div>
+                    <p class="font-medium mb-2">4. Why did Sarah's key card stop working?</p>
+                    <textarea id="q4" placeholder="Your answer here..."></textarea>
+                </div>
+                <div>
+                    <p class="font-medium mb-2">5. How will Sarah be informed when the Wi-Fi and AC issues are fixed?</p>
+                    <textarea id="q5" placeholder="Your answer here..."></textarea>
+                </div>
+                <div>
+                    <p class="font-medium mb-2">6. What does Mark offer Sarah in the first dialogue if she is out of the room when maintenance arrives?</p>
+                    <textarea id="q6" placeholder="Your answer here..."></textarea>
+                </div>
+                <div>
+                    <p class="font-medium mb-2">7. What does Maria offer Sarah in the second dialogue as she waits?</p>
+                    <textarea id="q7" placeholder="Your answer here..."></textarea>
+                </div>
+            </div>
+        </section>
+
+        <!-- Unscramble the Dialogue -->
+        <section id="unscramble-dialogue" class="mb-12">
+            <h2>4. Unscramble the Dialogue</h2>
+            <p class="mb-4 text-slate-700">The sentences below are from the dialogues but are out of order. Drag and drop them into the correct sequence to form a coherent conversation.</p>
+
+            <div class="bg-purple-50 p-6 rounded-xl shadow-md mb-8">
+                <h3 class="font-semibold text-xl text-purple-800 mb-4">Set A</h3>
+                <div id="unscramble-set-a" class="space-y-2">
+                    <!-- Draggable items will be populated by JS -->
+                </div>
+                <button onclick="checkUnscramble('set-a')" class="check-button mt-6 bg-purple-600 hover:bg-purple-700">Check Set A Order</button>
+            </div>
+
+            <div class="bg-purple-50 p-6 rounded-xl shadow-md">
+                <h3 class="font-semibold text-xl text-purple-800 mb-4">Set B</h3>
+                <div id="unscramble-set-b" class="space-y-2">
+                    <!-- Draggable items will be populated by JS -->
+                </div>
+                <button onclick="checkUnscramble('set-b')" class="check-button mt-6 bg-purple-600 hover:bg-purple-700">Check Set B Order</button>
+            </div>
+        </section>
+
+        <!-- Role-Play / Speaking Practice -->
+        <section id="role-play" class="mb-12">
+            <h2>5. Role-Play / Speaking Practice</h2>
+            <p class="mb-4 text-slate-700">Imagine you are a hotel guest or a front desk agent. Choose one of the scenarios below and role-play the conversation with a partner.</p>
+
+            <div class="bg-green-50 p-6 rounded-xl shadow-md mb-6">
+                <h3 class="font-semibold text-xl text-green-800 mb-4">Scenario 1: The Frustrated Guest</h3>
+                <ul class="list-disc list-inside text-slate-700 space-y-2">
+                    <li>You have just arrived at your hotel room after a long journey, and you discover:</li>
+                    <ul class="list-circle list-inside ml-4">
+                        <li>The TV isn't working.</li>
+                        <li>There are no towels in the bathroom.</li>
+                        <li>The coffee maker is missing.</li>
+                    </ul>
+                    <li>Call the front desk to report these issues politely but firmly.</li>
+                </ul>
+            </div>
+
+            <div class="bg-green-50 p-6 rounded-xl shadow-md mb-6">
+                <h3 class="font-semibold text-xl text-green-800 mb-4">Scenario 2: The Helpful Front Desk Agent</h3>
+                <ul class="list-disc list-inside text-slate-700 space-y-2">
+                    <li>You are working at the front desk. A guest calls with the following complaints:</li>
+                    <ul class="list-circle list-inside ml-4">
+                        <li>Their room smells strongly of smoke (it's a non-smoking room).</li>
+                        <li>The bed lamp is broken.</li>
+                        <li>There's a loud party in the room next door.</li>
+                    </ul>
+                    <li>Listen attentively, apologize sincerely, and offer appropriate solutions.</li>
+                </ul>
+            </div>
+
+            <div class="bg-green-50 p-6 rounded-xl shadow-md">
+                <h3 class="font-semibold text-xl text-green-800 mb-4">Scenario 3: A Different Problem</h3>
+                <ul class="list-disc list-inside text-slate-700 space-y-2">
+                    <li>You are a hotel guest, and you have a new problem to report:</li>
+                    <ul class="list-circle list-inside ml-4">
+                        <li>The iron in your room is leaking water.</li>
+                        <li>The safe in your room won't open.</li>
+                        <li>You've lost your room key.</li>
+                    </ul>
+                    <li>Call the front desk and explain the situation.</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Writing Practice - Email of Complaint -->
+        <section id="writing-practice" class="mb-12">
+            <h2>6. Writing Practice - Email of Complaint</h2>
+            <p class="mb-4 text-slate-700">Imagine you are Sarah Miller and after a frustrating stay, you decide to write an email to the hotel manager to express your dissatisfaction and summarize the issues you faced. Write an email (approx. 150-200 words) to the manager.</p>
+            <div class="bg-yellow-50 p-6 rounded-xl shadow-md">
+                <textarea id="email-complaint" placeholder="To: hotelmanager@grandviewhotel.com&#10;Subject: Complaint Regarding Recent Stay - Room 405&#10;&#10;Dear Hotel Manager,&#10;&#10;My name is Sarah Miller and I am currently staying in room 405. I am writing to express my significant dissatisfaction with several issues encountered during my stay..." rows="15"></textarea>
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+        // --- Fill-in-the-gaps data ---
+        const dialogue1Answers = {
+            gap1_1: "help",
+            gap1_2: "going",
+            gap1_3: "clogged",
+            gap1_4: "team",
+            gap1_5: "low",
+            gap1_6: "request",
+            gap1_7: "noise",
+            gap1_8: "ideal",
+            gap1_9: "cold",
+            gap1_10: "work",
+            gap1_11: "list",
+            gap1_12: "master",
+            gap1_13: "perfect",
+            gap1_14: "hesitate",
+            gap1_15: "stay"
+        };
+
+        const dialogue2Answers = {
+            gap2_1: "going",
+            gap2_2: "fix",
+            gap2_3: "irritating",
+            gap2_4: "spend",
+            gap2_5: "cutting",
+            gap2_6: "signal",
+            gap2_7: "drops",
+            gap2_8: "reset",
+            gap2_9: "working",
+            gap2_10: "issue",
+            gap2_11: "down",
+            gap2_12: "key",
+            gap2_13: "similar",
+            gap2_14: "sorted",
+            gap2_15: "reach"
+        };
+
+        function checkGaps(dialogueId) {
+            const answers = dialogueId === 'dialogue1' ? dialogue1Answers : dialogue2Answers;
+            let allCorrect = true;
+
+            for (const id in answers) {
+                const input = document.getElementById(id);
+                if (input) {
+                    const userAnswer = input.value.trim().toLowerCase();
+                    const correctAnswer = answers[id].toLowerCase();
+
+                    input.classList.remove('correct', 'incorrect');
+                    if (userAnswer === correctAnswer) {
+                        input.classList.add('correct');
+                    } else {
+                        input.classList.add('incorrect');
+                        allCorrect = false;
+                    }
+                }
+            }
+            if (allCorrect) {
+                alert("Great job! All answers are correct for " + dialogueId + "!");
+            } else {
+                alert("Some answers are incorrect. Please review and try again!");
+            }
+        }
+
+        // --- Vocabulary Match data ---
+        const vocabularyAnswers = {
+            match_1: "f", // Clogged: Blocked; stopped up.
+            match_2: "c", // Faulty: Not working properly; defective.
+            match_3: "e", // Rattling noise: Making a rapid series of short, sharp knocking sounds.
+            match_4: "g", // Intermittent: Not continuous or steady; stopping and starting.
+            match_5: "i", // Escalated: Raised to a higher level; made more serious or intense.
+            match_6: "a", // Inconvenience: A small problem or trouble.
+            match_7: "j", // Unacceptable: Too bad to be allowed, tolerated, or accepted.
+            match_8: "d", // Resolve: To solve a problem or difficulty.
+            match_9: "h", // Hesitate: To be reluctant or pause before doing something.
+            match_10: "b" // Strive: To try very hard to achieve something.
+        };
+
+        function checkVocabularyMatch() {
+            let allCorrect = true;
+            for (const id in vocabularyAnswers) {
+                const select = document.getElementById(id);
+                if (select) {
+                    select.classList.remove('correct', 'incorrect');
+                    if (select.value === vocabularyAnswers[id]) {
+                        select.classList.add('correct');
+                    } else {
+                        select.classList.add('incorrect');
+                        allCorrect = false;
+                    }
+                }
+            }
+            if (allCorrect) {
+                alert("Excellent! All vocabulary matches are correct!");
+            } else {
+                alert("Some vocabulary matches are incorrect. Please review and try again!");
+            }
+        }
+
+        // --- Unscramble the Dialogue data and functionality ---
+        const unscrambleSets = {
+            'set-a': [
+                { id: 'sa-b', text: "Good morning! Welcome to The Grandview Hotel. How can I help you today?" },
+                { id: 'sa-d', text: "Good morning. I'm Sarah Miller, in room 405. I'm afraid I'm having a few issues with my room this morning." },
+                { id: 'sa-c', text: "Oh, I'm sorry to hear that, Ms. Miller. Please tell me what's going on." },
+                { id: 'sa-e', text: "The air conditioning unit in my room is making a strange rattling noise." },
+                { id: 'sa-a', text: "A rattling AC unit, that's definitely not ideal for a good night's sleep." }
+            ],
+            'set-b': [
+                { id: 'sb-d', text: "Good afternoon! Welcome back, Ms. Miller. How's everything going after our maintenance visit this morning?" },
+                { id: 'sb-e', text: "Well, that's what I wanted to talk about, actually. Some things are better, but I've run into a couple more issues." },
+                { id: 'sb-b', text: "Oh dear, I'm sorry to hear that. Please, tell me what's wrong. Did maintenance not fix everything?" },
+                { id: 'sb-c', text: "They did a good job with the toilet and the showerhead; those are working perfectly now, so thank you for that." },
+                { id: 'sb-a', text: "The Wi-Fi in my room keeps cutting out." }
+            ]
+        };
+
+        let draggedItem = null;
+
+        function createDraggableList(setId) {
+            const container = document.getElementById(`unscramble-${setId}`);
+            let sentences = [...unscrambleSets[setId]]; // Create a copy
+            sentences.sort(() => Math.random() - 0.5); // Shuffle for initial display
+
+            container.innerHTML = ''; // Clear existing items
+
+            sentences.forEach(item => {
+                const div = document.createElement('div');
+                div.classList.add('draggable-item', 'flex', 'items-center', 'justify-between', 'p-3', 'bg-gray-50', 'rounded-lg', 'shadow-sm', 'cursor-grab');
+                div.setAttribute('draggable', 'true');
+                div.dataset.id = item.id;
+                div.innerHTML = `<span class="drag-handle">☰</span><span class="flex-grow">${item.text}</span>`;
+
+                div.addEventListener('dragstart', (e) => {
+                    draggedItem = div;
+                    e.dataTransfer.effectAllowed = 'move';
+                    // Use setTimeout to allow the item to be "grabbed" visually before opacity changes
+                    setTimeout(() => div.classList.add('dragging'), 0);
+                });
+
+                div.addEventListener('dragover', (e) => {
+                    e.preventDefault(); // Allow drop
+                    const boundingBox = div.getBoundingClientRect();
+                    const offset = boundingBox.y + (boundingBox.height / 2);
+                    if (e.clientY > offset) {
+                        div.style.borderBottom = '2px solid #6366f1'; // Indicate drop below
+                        div.style.borderTop = '';
+                    } else {
+                        div.style.borderTop = '2px solid #6366f1'; // Indicate drop above
+                        div.style.borderBottom = '';
+                    }
+                });
+
+                div.addEventListener('dragleave', () => {
+                    div.style.borderTop = '';
+                    div.style.borderBottom = '';
+                });
+
+                div.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    div.style.borderTop = '';
+                    div.style.borderBottom = '';
+
+                    if (draggedItem && draggedItem !== div) {
+                        const boundingBox = div.getBoundingClientRect();
+                        const offset = boundingBox.y + (boundingBox.height / 2);
+                        if (e.clientY > offset) {
+                            container.insertBefore(draggedItem, div.nextSibling);
+                        } else {
+                            container.insertBefore(draggedItem, div);
+                        }
+                    }
+                });
+
+                div.addEventListener('dragend', () => {
+                    draggedItem.classList.remove('dragging');
+                    draggedItem = null;
+                    // Remove any lingering border styles from dragover
+                    Array.from(container.children).forEach(child => {
+                        child.style.borderTop = '';
+                        child.style.borderBottom = '';
+                    });
+                });
+                container.appendChild(div);
+            });
+        }
+
+        function checkUnscramble(setId) {
+            const container = document.getElementById(`unscramble-${setId}`);
+            const currentOrder = Array.from(container.children).map(item => item.dataset.id);
+            const correctOrder = unscrambleSets[setId].map(item => item.id);
+
+            let allCorrect = true;
+            currentOrder.forEach((id, index) => {
+                const itemElement = Array.from(container.children).find(el => el.dataset.id === id);
+                itemElement.classList.remove('correct-order', 'incorrect-order');
+                if (id === correctOrder[index]) {
+                    itemElement.classList.add('correct-order');
+                } else {
+                    itemElement.classList.add('incorrect-order');
+                    allCorrect = false;
+                }
+            });
+
+            if (allCorrect) {
+                alert("Perfect! The dialogue is in the correct order for " + setId.toUpperCase() + "!");
+            } else {
+                alert("Not quite right. Some sentences are out of order for " + setId.toUpperCase() + ". Incorrect items are highlighted in red.");
+            }
+        }
+
+        // Initialize draggable lists on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            createDraggableList('set-a');
+            createDraggableList('set-b');
+        });
+
+    </script>
+</body>
+</html>

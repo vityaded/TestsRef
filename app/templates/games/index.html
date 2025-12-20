@@ -1,213 +1,231 @@
 {% extends "layouts/base.html" %}
 
-{% block title %}Games List{% endblock %}
+{% block title %}Games{% endblock %}
 
 {% block content %}
-  <div class="d-flex justify-content-between align-items-center flex-wrap my-4">
-    <h1 class="mb-3 mb-md-0">Available Games</h1>
-    {% if current_user.is_authenticated and current_user.is_admin %}
-      <div class="btn-group" role="group" aria-label="Game actions">
-        <button type="button" class="btn btn-outline-light" data-toggle="modal" data-target="#jeopardyModal">
-          Create Jeopardy
-        </button>
-        <button type="button" class="btn btn-outline-success" data-toggle="modal" data-target="#textQuestModal">
-          Create Text Quest
-        </button>
-        <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#addGameModal">
-          Add Game
-        </button>
-      </div>
-    {% endif %}
-  </div>
-
-  <div class="list-group">
-    {% if games %}
-      {% for game in games %}
-        <div class="list-group-item d-flex justify-content-between align-items-center flex-wrap">
-          <a href="{{ url_for('games.play', game_name=game.id) }}" class="font-weight-bold mb-2 mb-sm-0">
-            {{ game.name }}
-          </a>
-          {% if current_user.is_authenticated and current_user.is_admin %}
-            <div class="d-flex align-items-center">
-              <a href="{{ url_for('games.edit_game', game_name=game.id) }}" class="btn btn-outline-secondary btn-sm">Edit</a>
-              <button
-                type="button"
-                class="btn btn-outline-info btn-sm ml-2"
-                data-toggle="modal"
-                data-target="#gameQrModal"
-                data-game-url="{{ url_for('games.play', game_name=game.id, _external=True) }}"
-                data-game-name="{{ game.name }}"
-                data-qr-url="{{ url_for('games.game_qr_code', game_name=game.id) }}"
-              >
-                Show QR
-              </button>
-              <form method="post" action="{{ url_for('games.delete_game', game_name=game.id) }}" class="ml-2" onsubmit="return confirm('Are you sure you want to delete this game?');">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
-              </form>
-            </div>
-          {% endif %}
-        </div>
-      {% endfor %}
-    {% else %}
-      <p class="text-center">No games found!</p>
-    {% endif %}
-  </div>
-
-  {% if current_user.is_authenticated and current_user.is_admin %}
-    <div class="modal fade" id="addGameModal" tabindex="-1" role="dialog" aria-labelledby="addGameModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="addGameModalLabel">Add Game</h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">Available Games</h1>
+        {% if current_user.is_authenticated and current_user.is_admin %}
+            <button class="btn btn-primary" type="button" data-toggle="collapse" data-target="#adminActions" aria-expanded="false" aria-controls="adminActions">
+                Admin Actions
             </button>
-          </div>
-          <form method="post" action="{{ url_for('games.add_game') }}" enctype="multipart/form-data">
-            <div class="modal-body">
-              {{ add_game_form.hidden_tag() }}
-              <div class="form-group">
-                {{ add_game_form.name.label(class="form-label") }}
-                {{ add_game_form.name(class="form-control", placeholder="Enter game name") }}
-              </div>
-              <div class="form-group">
-                {{ add_game_form.content.label(class="form-label") }}
-                {{ add_game_form.content(class="form-control", rows=12, placeholder="Paste game HTML here") }}
-              </div>
-              <div class="form-group">
-                <label>Upload files</label>
-                <input class="form-control" type="file" name="asset_files" multiple>
-              </div>
+        {% endif %}
+    </div>
 
-              <div class="form-group">
-                <label>Upload folder</label>
-                <input class="form-control" type="file" name="asset_folder" webkitdirectory directory multiple>
-                <small class="form-text text-muted">Chrome/Edge support. Folder structure will be preserved.</small>
-              </div>
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <div class="collapse" id="adminActions">
+        <div class="card card-body mb-4">
+            <h3 class="card-title">Admin Controls</h3>
+            <p>Create new games or manage existing ones.</p>
+            <div class="btn-group" role="group" aria-label="Game actions">
+                <button type="button" class="btn btn-secondary" data-toggle="modal" data-target="#jeopardyModal">
+                    Create Jeopardy
+                </button>
+                <button type="button" class="btn btn-info" data-toggle="modal" data-target="#textQuestModal">
+                    Create Text Quest
+                </button>
+                <button type="button" class="btn btn-success" data-toggle="modal" data-target="#addGameModal">
+                    Add Game
+                </button>
             </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-              {{ add_game_form.submit(class="btn btn-primary") }}
-            </div>
-          </form>
         </div>
-      </div>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        {% if games %}
+            {% for game in games %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">{{ game.name }}</h5>
+                            <p class="card-text text-muted">A fun and interactive game.</p>
+                            <a href="{{ url_for('games.play', game_name=game.id) }}" class="btn btn-primary mt-auto">Play Game</a>
+                            {% if current_user.is_authenticated and current_user.is_admin %}
+                                <div class="mt-3">
+                                    <a href="{{ url_for('games.edit_game', game_name=game.id) }}" class="btn btn-secondary btn-sm">Edit</a>
+                                    <button
+                                        type="button"
+                                        class="btn btn-info btn-sm ml-2"
+                                        data-toggle="modal"
+                                        data-target="#gameQrModal"
+                                        data-game-url="{{ url_for('games.play', game_name=game.id, _external=True) }}"
+                                        data-game-name="{{ game.name }}"
+                                        data-qr-url="{{ url_for('games.game_qr_code', game_name=game.id) }}"
+                                    >
+                                        Show QR
+                                    </button>
+                                    <form method="post" action="{{ url_for('games.delete_game', game_name=game.id) }}" class="d-inline ml-2" onsubmit="return confirm('Are you sure you want to delete this game?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                    </form>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <p class="card-text">No games found! Check back later.</p>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modals -->
+{% if current_user.is_authenticated and current_user.is_admin %}
+    <div class="modal fade" id="addGameModal" tabindex="-1" role="dialog" aria-labelledby="addGameModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addGameModalLabel">Add New Game</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <form method="post" action="{{ url_for('games.add_game') }}" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        {{ add_game_form.hidden_tag() }}
+                        <div class="form-group">
+                            {{ add_game_form.name.label(class="form-label") }}
+                            {{ add_game_form.name(class="form-control", placeholder="Enter game name") }}
+                        </div>
+                        <div class="form-group">
+                            {{ add_game_form.content.label(class="form-label") }}
+                            {{ add_game_form.content(class="form-control", rows=12, placeholder="Paste game HTML here") }}
+                        </div>
+                        <div class="form-group">
+                            <label>Upload files</label>
+                            <input class="form-control" type="file" name="asset_files" multiple>
+                        </div>
+                        <div class="form-group">
+                            <label>Upload folder</label>
+                            <input class="form-control" type="file" name="asset_folder" webkitdirectory directory multiple>
+                            <small class="form-text text-muted">Chrome/Edge support. Folder structure will be preserved.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        {{ add_game_form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
     <div class="modal fade" id="jeopardyModal" tabindex="-1" role="dialog" aria-labelledby="jeopardyModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="jeopardyModalLabel">Create Jeopardy</h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-          <form method="post" action="{{ url_for('games.create_jeopardy') }}" enctype="multipart/form-data">
-            <div class="modal-body">
-              {{ jeopardy_form.hidden_tag() }}
-              <div class="form-group">
-                {{ jeopardy_form.name.label(class="form-label") }}
-                {{ jeopardy_form.name(class="form-control", placeholder="Enter game name") }}
-              </div>
-              <div class="form-group">
-                {{ jeopardy_form.content.label(class="form-label") }}
-                {{ jeopardy_form.content(
-                  class="form-control",
-                  rows=10,
-                  placeholder='Category,Value,"Question","Answer"\nGames,100,"What game genre is in GTA V","Action-adventure"'
-                ) }}
-                <small class="form-text text-muted">Paste one entry per line using Category, Value, Question, Answer.</small>
-              </div>
-              <div class="form-group">
-                <label>Upload files</label>
-                <input class="form-control" type="file" name="asset_files" multiple>
-              </div>
-
-              <div class="form-group">
-                <label>Upload folder</label>
-                <input class="form-control" type="file" name="asset_folder" webkitdirectory directory multiple>
-                <small class="form-text text-muted">Chrome/Edge support. Folder structure will be preserved.</small>
-              </div>
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="jeopardyModalLabel">Create Jeopardy Game</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <form method="post" action="{{ url_for('games.create_jeopardy') }}" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        {{ jeopardy_form.hidden_tag() }}
+                        <div class="form-group">
+                            {{ jeopardy_form.name.label(class="form-label") }}
+                            {{ jeopardy_form.name(class="form-control", placeholder="Enter game name") }}
+                        </div>
+                        <div class="form-group">
+                            {{ jeopardy_form.content.label(class="form-label") }}
+                            {{ jeopardy_form.content(
+                                class="form-control",
+                                rows=10,
+                                placeholder='Category,Value,"Question","Answer"\nGames,100,"What game genre is in GTA V","Action-adventure"'
+                            ) }}
+                            <small class="form-text text-muted">Paste one entry per line using Category, Value, Question, Answer.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Upload files</label>
+                            <input class="form-control" type="file" name="asset_files" multiple>
+                        </div>
+                        <div class="form-group">
+                            <label>Upload folder</label>
+                            <input class="form-control" type="file" name="asset_folder" webkitdirectory directory multiple>
+                            <small class="form-text text-muted">Chrome/Edge support. Folder structure will be preserved.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        {{ jeopardy_form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
             </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-              {{ jeopardy_form.submit(class="btn btn-primary") }}
-            </div>
-          </form>
         </div>
-      </div>
     </div>
     <div class="modal fade" id="textQuestModal" tabindex="-1" role="dialog" aria-labelledby="textQuestModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="textQuestModalLabel">Create Text Quest</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <form method="post" action="{{ url_for('games.create_text_quest') }}" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        {{ text_quest_form.hidden_tag() }}
+                        <div class="form-group">
+                            {{ text_quest_form.name.label(class="form-label") }}
+                            {{ text_quest_form.name(class="form-control", placeholder="Enter text quest name") }}
+                        </div>
+                        <div class="form-group">
+                            {{ text_quest_form.content.label(class="form-label") }}
+                            {{ text_quest_form.content(
+                                class="form-control",
+                                rows=12,
+                                placeholder="Paste your gameData, vocabulary, and translation blocks here"
+                            ) }}
+                            <small class="form-text text-muted">
+                                Paste only the sections for <code>gameData</code>, <code>vocabulary</code>, and <code>vocabTranslations</code>. The game will be generated from the game_test3 blueprint automatically using your blocks.
+                            </small>
+                        </div>
+                        <div class="form-group">
+                            <label>Upload files</label>
+                            <input class="form-control" type="file" name="asset_files" multiple>
+                        </div>
+                        <div class="form-group">
+                            <label>Upload folder</label>
+                            <input class="form-control" type="file" name="asset_folder" webkitdirectory directory multiple>
+                            <small class="form-text text-muted">Chrome/Edge support. Folder structure will be preserved.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        {{ text_quest_form.submit(class="btn btn-success") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endif %}
+<div class="modal fade" id="gameQrModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="textQuestModalLabel">Create Text Quest</h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-          <form method="post" action="{{ url_for('games.create_text_quest') }}" enctype="multipart/form-data">
-            <div class="modal-body">
-              {{ text_quest_form.hidden_tag() }}
-              <div class="form-group">
-                {{ text_quest_form.name.label(class="form-label") }}
-                {{ text_quest_form.name(class="form-control", placeholder="Enter text quest name") }}
-              </div>
-              <div class="form-group">
-                {{ text_quest_form.content.label(class="form-label") }}
-                {{ text_quest_form.content(
-                  class="form-control",
-                  rows=12,
-                  placeholder="Paste your gameData, vocabulary, and translation blocks here"
-                ) }}
-                <small class="form-text text-muted">
-                  Paste only the sections for <code>gameData</code>, <code>vocabulary</code>, and <code>vocabTranslations</code>. The game will be generated from the game_test3 blueprint automatically using your blocks.
-                </small>
-              </div>
-              <div class="form-group">
-                <label>Upload files</label>
-                <input class="form-control" type="file" name="asset_files" multiple>
-              </div>
-
-              <div class="form-group">
-                <label>Upload folder</label>
-                <input class="form-control" type="file" name="asset_folder" webkitdirectory directory multiple>
-                <small class="form-text text-muted">Chrome/Edge support. Folder structure will be preserved.</small>
-              </div>
+            <div class="modal-header">
+                <h5 class="modal-title">Join <span id="gameQrTitle"></span></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="gameQrImage" class="img-fluid mb-3" alt="QR Code" />
+                <a id="gameQrLink" href="#" target="_blank" rel="noopener"></a>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-              {{ text_quest_form.submit(class="btn btn-success") }}
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
             </div>
-          </form>
         </div>
-      </div>
     </div>
-  {% endif %}
-
-  <div class="modal fade" id="gameQrModal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" role="document">
-      <div class="modal-content text-white bg-dark">
-        <div class="modal-header border-0">
-          <h5 class="modal-title">Join <span id="gameQrTitle"></span></h5>
-          <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body d-flex flex-column justify-content-center align-items-center">
-          <div class="d-flex justify-content-center align-items-center w-100">
-            <img id="gameQrImage" class="img-fluid" alt="" />
-          </div>
-          <a id="gameQrLink" class="mt-4 text-info" href="#" target="_blank" rel="noopener"></a>
-        </div>
-        <div class="modal-footer border-0">
-          <button type="button" class="btn btn-outline-light" data-dismiss="modal">Close</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -241,23 +259,4 @@
       });
     })(jQuery);
   </script>
-{% endblock %}
-
-{% block styles %}
-  {{ super() }}
-  <style>
-    #gameQrModal .modal-dialog {
-      max-width: 100vw;
-      margin: 0;
-    }
-
-    #gameQrModal .modal-content {
-      border-radius: 0;
-      min-height: 100vh;
-    }
-
-    #gameQrImage {
-      max-height: 60vh;
-    }
-  </style>
 {% endblock %}

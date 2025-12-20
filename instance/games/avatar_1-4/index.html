@@ -1,0 +1,2044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Quest: Recon Patrol (Simplified)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind Configuration
+        tailwind.config = {
+          theme: {
+            extend: {
+              colors: {
+                'dark-bg': '#2c3e50',
+                'container-bg': '#34495e',
+                'light-text': '#ecf0f1',
+                'accent': '#1abc9c',      // Main action buttons
+                'accent-dark': '#16a085',
+                'highlight': '#f1c40f',    // Keyword highlight & Memory retry prompt
+                'location': '#95a5a6',     // Location text & Disabled button color
+                'danger': '#e74c3c',       // Restart/Fail/Error
+                'danger-dark': '#c0392b',
+                'success': '#2ecc71',      // Game success, Memory Match, "Listen carefully" button
+                'border-color': '#4a6572',
+                'info': '#3498db',         // Listening pulse/info messages
+              }
+            }
+          }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #scene-text {
+            min-height: 80px; /* Maintain minimum height */
+            border-left: 4px solid config('theme.colors.accent');
+            transition: background-color 0.5s ease, opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        #scene-text.speaking {
+            background-color: #4a6572; /* Indicate text is being spoken */
+        }
+        /* Used when showing Ukrainian during memory recall */
+        #scene-text.memory-recall-active {
+             border-left: 4px solid config('theme.colors.highlight');
+        }
+
+        button#restart-button {
+            background-color: config('theme.colors.danger');
+            margin-left: auto;
+            margin-right: auto;
+            width: fit-content;
+        }
+        button#restart-button:hover {
+             background-color: config('theme.colors.danger-dark');
+        }
+        .keyword-highlight {
+            color: config('theme.colors.highlight');
+            font-weight: bold;
+        }
+        .memory-match {
+             color: config('theme.colors.success'); /* Green for matched words */
+             font-weight: bold;
+        }
+        .location-text {
+             font-style: italic;
+             color: config('theme.colors.location');
+             display: block;
+             margin-top: 0.5rem;
+             font-size: 0.9em;
+        }
+        .game-over, .game-success { /* Combined common styles */
+            font-weight: bold;
+            text-align: center;
+            font-size: 1.2em;
+            margin-top: 1rem;
+        }
+        .game-over { color: config('theme.colors.danger'); }
+        .game-success { color: config('theme.colors.success'); }
+
+        #voice-button {
+            transition: background-color 0.3s ease;
+        }
+        #voice-button.listening {
+            background-color: config('theme.colors.info');
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; }
+        }
+
+        #voice-status {
+            min-height: 1.5em; /* Ensure space for messages */
+            margin-top: 0.75rem;
+            text-align: center;
+            font-style: italic;
+            transition: color 0.3s ease;
+        }
+        /* Hide choice buttons during voice input phase */
+        #choices-container.hidden {
+            display: none;
+        }
+         /* Specific styling for choice buttons (kept simple as they aren't primary interaction) */
+         #choices-container button {
+            opacity: 0.7; /* Slightly faded as they are not primary */
+            cursor: default; /* Not clickable by default */
+         }
+
+
+        #start-challenge-btn { /* Renamed from enable-audio-btn */
+            display: block;
+            margin: 1rem auto;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+         /* Style when audio is enabled */
+        #start-challenge-btn.audio-enabled {
+            background-color: config('theme.colors.success'); /* Green */
+            cursor: default;
+         }
+         #start-challenge-btn.audio-enabled:hover {
+             background-color: config('theme.colors.success'); /* Stay green */
+         }
+         #start-challenge-btn:disabled {
+             background-color: config('theme.colors.location');
+             cursor: not-allowed;
+             opacity: 0.7;
+         }
+
+        #vocab-list-container {
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        #vocab-list-container ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            columns: 2;
+            -webkit-columns: 2;
+            -moz-columns: 2;
+        }
+        #vocab-list-container li {
+            margin-bottom: 0.3rem;
+            color: config('theme.colors.light-text');
+        }
+        #vocab-list-container li .ua-term {
+            color: config('theme.colors.accent');
+            font-weight: 500;
+        }
+        #vocab-list-container.hidden {
+           opacity: 0;
+           visibility: hidden;
+           height: 0;
+           overflow: hidden;
+           margin-bottom: 0; /* Collapse margin */
+           padding: 0; /* Collapse padding */
+           border: none; /* Collapse border */
+        }
+
+    </style>
+</head>
+<body class="bg-dark-bg text-light-text leading-relaxed">
+
+<div class="max-w-2xl mx-auto my-5 p-5 border border-border-color shadow-lg rounded-lg">
+
+    <button id="start-challenge-btn" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded">
+         Start the challenge 🚀
+    </button>
+
+    <div id="game-container" class="bg-container-bg p-6 rounded-md border border-border-color mt-4">
+        <h1 class="text-accent text-center text-2xl font-bold border-b-2 border-accent-dark pb-2 mb-5">
+            Recon Patrol
+        </h1>
+
+        <div id="vocab-list-container" class="bg-dark-bg p-3 mb-4 rounded border border-border-color text-sm hidden">
+            </div>
+        <div id="scene-text" class="bg-dark-bg p-4 rounded mb-6">
+            Loading...
+        </div>
+        <div id="choices-container" class="space-y-3 mt-4 hidden">
+            </div>
+        <div class="mt-6 text-center">
+             <button id="voice-button" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed">
+                 Speak Action 🎤
+             </button>
+             <div id="feedback-percentage-area" class="text-center font-semibold mt-2 min-h-[1.2em]">
+                </div>
+             <div id="voice-status" class="text-info"></div>
+        </div>
+        <div id="outcome-display" class="mt-4">
+            </div>
+    </div>
+</div>
+<script>
+// --- Game Data (Scenes) ---
+// (Keep gameData object as is - too large to include here, assumed present from original)
+const gameData = {
+  /* ---------- EPISODE 1: The Boy in the Iceberg ---------- */
+  'start': {
+    text: {
+      en: "You are Katara, a young waterbender. You and your brother, Sokka, are in a canoe, fishing for food near your village in the South Pole. Sokka is trying to catch a fish with his spear.",
+      ua: "Ти Катара, юна повелителька води. Ти і твій брат, Сокка, у каное, ловите рибу для їжі біля вашого селища на Південному полюсі. Сокка намагається впіймати рибу своїм списом."
+    },
+    choices: [
+      { text: "Practice your waterbending.", nextScene: 'practice_waterbending' },
+      { text: "Let Sokka fish in peace.", nextScene: 'wait_for_sokka' }
+    ]
+  },
+  'practice_waterbending': {
+    text: {
+      en: "You practice bending the water. You accidentally soak Sokka and get your canoe stuck in a dangerous ice flow! Your argument with Sokka makes you angry, and your uncontrolled waterbending cracks a giant iceberg nearby!",
+      ua: "Ти тренуєшся керувати водою. Ти випадково намочила Сокку і застрягла з каное у небезпечному потоці криги! Ваша сварка з Соккою розлючує тебе, і твоя неконтрольована магія води розколює гігантський айсберг неподалік!"
+    },
+    choices: [
+      { text: "Investigate the strange light from the iceberg.", nextScene: 'investigate_iceberg' }
+    ]
+  },
+  'wait_for_sokka': {
+    text: {
+      en: "You wait patiently. Sokka gets angry when a fish escapes. You drift into a dangerous ice flow and get trapped. Arguing with Sokka, you get upset and your waterbending power cracks a huge iceberg!",
+      ua: "Ти терпляче чекаєш. Сокка злиться, коли риба втікає. Ви дрейфуєте у небезпечний потік криги і застрягаєте. Сперечаючись із Соккою, ти засмучуєшся, і твоя сила магії води розколює величезний айсберг!"
+    },
+    choices: [
+      { text: "Investigate the strange light from the iceberg.", nextScene: 'investigate_iceberg' }
+    ]
+  },
+  'investigate_iceberg': {
+    text: {
+      en: "A beam of light shoots into the sky from the cracked iceberg. Inside, you see the shape of a boy with strange arrow tattoos and a giant creature. You grab Sokka's club and break the ice to free them.",
+      ua: "Промінь світла виривається в небо з розколотого айсберга. Усередині ти бачиш фігуру хлопчика з дивними татуюваннями у вигляді стріл і гігантську істоту. Ти хапаєш палицю Сокки і розбиваєш лід, щоб звільнити їх."
+    },
+    choices: [
+      { text: "Help the boy.", nextScene: 'aang_awakens' }
+    ]
+  },
+  'aang_awakens': {
+    text: {
+      en: "The boy wakes up. He introduces himself as Aang and his giant flying bison as Appa. He seems cheerful and friendly, but Sokka is suspicious. He thinks Aang might be a spy for the Fire Nation.",
+      ua: "Хлопчик прокидається. Він представляється як Аанг, а свого гігантського літаючого бізона як Аппа. Він здається веселим і дружелюбним, але Сокка підозрілий. Він думає, що Аанг може бути шпигуном Народу Вогню."
+    },
+    choices: [
+      { text: "Offer Aang a ride back to your village.", nextScene: 'to_the_village' },
+      { text: "Agree with Sokka that he seems suspicious.", nextScene: 'sokka_suspicion' }
+    ]
+  },
+  'sokka_suspicion': {
+    text: {
+      en: "You agree with Sokka. 'Why were you in the ice?' you ask Aang. He seems confused and doesn't know. He offers you a ride home on Appa. Sokka refuses at first, but agrees when he realizes you are stranded.",
+      ua: "Ти погоджуєшся з Соккою. 'Чому ти був у льоду?' — питаєш ти Аанга. Він виглядає спантеличеним і не знає. Він пропонує підвезти вас додому на Аппі. Сокка спочатку відмовляється, але погоджується, коли розуміє, що ви застрягли."
+    },
+    choices: [
+      { text: "Travel to the village on Appa.", nextScene: 'to_the_village' }
+    ]
+  },
+  'to_the_village': {
+    text: {
+      en: "You arrive at your village. Your grandmother, Gran-Gran, welcomes Aang, but the other villagers are wary. Later, you tell Aang about the war with the Fire Nation. He seems to have no idea what you're talking about.",
+      ua: "Ви прибуваєте до вашого селища. Твоя бабуся, Пра-пра, вітає Аанга, але інші селяни ставляться насторожено. Пізніше ти розповідаєш Аангу про війну з Народом Вогню. Він, здається, не має уявлення, про що ти говориш."
+    },
+    choices: [
+      { text: "Go with Aang to explore a nearby place.", nextScene: 'explore_ship' },
+      { text: "Stay in the village and do your chores.", nextScene: 'stay_village' }
+    ]
+  },
+  'explore_ship': {
+    text: {
+      en: "Aang wants to show you a place he found while penguin sledding. It's an old, derelict Fire Navy ship, trapped in the ice. Sokka warned you not to go, but you go with Aang anyway.",
+      ua: "Аанг хоче показати тобі місце, яке він знайшов, катаючись на пінгвінах. Це старий, покинутий корабель флоту Народу Вогню, застряглий у льоду. Сокка попереджав тебе не ходити, але ти все одно йдеш з Аангом."
+    },
+    choices: [
+      { text: "Go inside the ship.", nextScene: 'trigger_flare' },
+      { text: "Stay outside; it looks creepy.", nextScene: 'leave_ship' }
+    ]
+  },
+  'stay_village': {
+    text: {
+      en: "You stay in the village while Aang explores on his own. Later, you see a bright flare shoot into the sky from the direction he went. This will surely attract the Fire Nation!",
+      ua: "Ти залишаєшся в селищі, поки Аанг досліджує сам. Пізніше ти бачиш яскравий сигнальний вогонь, що злітає в небо з того напрямку, куди він пішов. Це точно приверне увагу Народу Вогню!"
+    },
+    choices: [
+      { text: "Blame Aang when he returns.", nextScene: 'blame_aang' }
+    ]
+  },
+  'trigger_flare': {
+    text: {
+      en: "Inside the creepy ship, you and Aang explore. You accidentally trigger a booby trap, sending a signal flare high into the sky. Prince Zuko, on his nearby warship, sees the flare and heads towards your location.",
+      ua: "Усередині моторошного корабля ти та Аанг досліджуєте. Ви випадково спрацьовуєте пастку, запускаючи сигнальну ракету високо в небо. Принц Зуко на своєму військовому кораблі неподалік бачить ракету і прямує до вашого місцезнаходження."
+    },
+    choices: [
+      { text: "Return to the village immediately.", nextScene: 'blame_aang' }
+    ]
+  },
+  'leave_ship': {
+    text: {
+      en: "You decide the ship is too dangerous and tell Aang you want to leave. As you turn back, Aang enters alone. Moments later, a flare shoots into the sky from the ship!",
+      ua: "Ти вирішуєш, що корабель занадто небезпечний, і кажеш Аангу, що хочеш піти. Коли ти повертаєшся, Аанг заходить один. Через кілька хвилин з корабля вилітає сигнальна ракета!"
+    },
+    choices: [
+      { text: "Hurry back to the village.", nextScene: 'blame_aang' }
+    ]
+  },
+
+  /* ---------- EPISODE 2: The Avatar Returns ---------- */
+  'blame_aang': {
+    text: {
+      en: "When you and Aang return, Sokka is furious. He blames Aang for signaling the Fire Navy. After a tense argument, and to protect the tribe, Sokka banishes Aang from the village.",
+      ua: "Коли ти і Аанг повертаєтеся, Сокка розлючений. Він звинувачує Аанга в тому, що той подав сигнал флоту Народу Вогню. Після напруженої суперечки, щоб захистити плем'я, Сокка виганяє Аанга з селища."
+    },
+    choices: [
+      { text: "Protest and say you'll leave with Aang.", nextScene: 'protest_banishment' },
+      { text: "Sadly accept the decision.", nextScene: 'accept_banishment' }
+    ]
+  },
+  'protest_banishment': {
+    text: {
+      en: "You declare that if Aang is banished, you are too! You will travel with him to the North Pole to find a waterbending master. Sokka is hurt, but Aang decides to leave alone to not break up your family.",
+      ua: "Ти заявляєш, що якщо Аанга вигнали, то і ти теж! Ти поїдеш з ним на Північний полюс, щоб знайти майстра магії води. Сокка ображений, але Аанг вирішує піти сам, щоб не руйнувати вашу сім'ю."
+    },
+    choices: [
+      { text: "Watch Aang leave.", nextScene: 'zuko_arrives' }
+    ]
+  },
+  'accept_banishment': {
+    text: {
+      en: "You are sad, but you understand Sokka's duty to protect the tribe. You say a sad goodbye to Aang as he leaves on Appa.",
+      ua: "Тобі сумно, але ти розумієш обов'язок Сокки захищати плем'я. Ти сумно прощаєшся з Аангом, коли він відлітає на Аппі."
+    },
+    choices: [
+      { text: "Wait and watch the horizon.", nextScene: 'zuko_arrives' }
+    ]
+  },
+  'zuko_arrives': {
+    text: {
+      en: "Soon after Aang leaves, Prince Zuko's ship arrives. Zuko and his soldiers attack the village, demanding the Avatar. Sokka tries to fight him but is easily defeated.",
+      ua: "Незабаром після того, як Аанг іде, прибуває корабель принца Зуко. Зуко та його солдати нападають на селище, вимагаючи Аватара. Сокка намагається битися з ним, але його легко перемагають."
+    },
+    choices: [
+      { text: "Hope that Aang returns.", nextScene: 'aang_returns' }
+    ]
+  },
+  'aang_returns': {
+    text: {
+      en: "Just as Zuko threatens Gran-Gran, Aang returns on his glider! He reveals he is the Avatar and fights Zuko to protect the village. To save everyone, he agrees to go with Zuko as his prisoner.",
+      ua: "Саме тоді, коли Зуко погрожує Пра-пра, Аанг повертається на своєму планері! Він розкриває, що він Аватар, і б'ється з Зуко, щоб захистити селище. Щоб врятувати всіх, він погоджується піти з Зуко як його бранець."
+    },
+    choices: [
+      { text: "We have to rescue him!", nextScene: 'rescue_mission' }
+    ]
+  },
+  'rescue_mission': {
+    text: {
+      en: "You know you must save Aang. You convince Sokka that Aang is their friend and the world's only hope. With Gran-Gran's blessing, you both call for Appa to begin your journey to rescue the Avatar.",
+      ua: "Ти знаєш, що мусиш врятувати Аанга. Ти переконуєш Сокку, що Аанг — їхній друг і єдина надія світу. З благословення Пра-пра ви обоє кличете Аппу, щоб розпочати свою подорож для порятунку Аватара."
+    },
+    choices: [
+      { text: "Fly after Zuko's ship on Appa.", nextScene: 'on_zuko_ship' }
+    ]
+  },
+  'on_zuko_ship': {
+    text: {
+      en: "Aboard Zuko's ship, Aang escapes his cell and finds his staff. He battles Zuko and his crew. Just as things look bad, you and Sokka arrive on Appa! In the chaos, Aang is knocked into the ocean and enters the powerful Avatar State!",
+      ua: "На борту корабля Зуко Аанг втікає зі своєї камери і знаходить свій посох. Він б'ється з Зуко та його командою. Саме тоді, коли все здається поганим, ви з Соккою прибуваєте на Аппі! У хаосі Аанга збивають в океан, і він входить у могутній Стан Аватара!"
+    },
+    choices: [
+      { text: "Help Aang onto Appa and escape!", nextScene: 'escape_zuko' }
+    ]
+  },
+  'escape_zuko': {
+    text: {
+      en: "Using incredible waterbending, Aang sweeps the Firebenders off the deck and gets back on Appa. You all fly away, leaving Zuko defeated and furious. You decide to travel together to the North Pole so you and Aang can master waterbending.",
+      ua: "Використовуючи неймовірну магію води, Аанг змітає магів вогню з палуби і повертається на Аппу. Ви всі відлітаєте, залишаючи Зуко переможеним і розлюченим. Ви вирішуєте разом подорожувати на Північний полюс, щоб ти і Аанг могли опанувати магію води."
+    },
+    choices: [
+      { text: "Where should we go first?", nextScene: 'decide_next_stop' }
+    ]
+  },
+
+  'decide_next_stop': {
+    text: {
+      en: "You are all together on Appa. Your mission is to get to the North Pole. But Aang is excited to be free after 100 years. He wants to visit his old home.",
+      ua: "Ви всі разом на Аппі. Ваша місія — дістатися до Північного полюса. Але Аанг радий бути вільним після 100 років. Він хоче відвідати свій старий дім."
+    },
+    choices: [
+      { text: "Agree to go to the Southern Air Temple.", nextScene: 'to_air_temple' },
+      { text: "Insist on going straight to the North Pole.", nextScene: 'insist_north_pole' }
+    ]
+  },
+  'insist_north_pole': {
+    text: {
+      en: "You tell Aang that mastering waterbending is more important. Aang is sad, but agrees. The journey to the North Pole will be long and direct. (This path skips some adventures for now).",
+      ua: "Ти кажеш Аангу, що опанування магії води важливіше. Аанг засмучений, але погоджується. Подорож на Північний полюс буде довгою і прямою. (Цей шлях поки що пропускає деякі пригоди)."
+    },
+    choices: [
+      { text: "Continue the journey north.", nextScene: 'journey_continues' }
+    ]
+  },
+  'to_air_temple': {
+    text: {
+      en: "You fly to the beautiful Southern Air Temple, perched high in the mountains. Aang is excited to see his home and meet his teacher, Monk Gyatso. You feel a bit worried; a lot can change in 100 years.",
+      ua: "Ви летите до прекрасного Південного Храму Повітря, розташованого високо в горах. Аанг з нетерпінням чекає зустрічі зі своїм домом та вчителем, Монахом Гіяцо. Ти трохи хвилюєшся; за 100 років багато що могло змінитися."
+    },
+    choices: [
+      { text: "Explore the temple grounds with Aang.", nextScene: 'explore_temple' },
+      { text: "Tell Aang to be prepared for what he might see.", nextScene: 'warn_aang' }
+    ]
+  },
+  'warn_aang': {
+    text: {
+      en: "You gently tell Aang that the Fire Nation was ruthless and could have attacked the temple. Aang insists it's impossible, because the only way to get there is on a flying bison.",
+      ua: "Ти обережно кажеш Аангу, що Народ Вогню був безжальним і міг напасти на храм. Аанг наполягає, що це неможливо, оскільки єдиний спосіб дістатися туди — на літаючому бізоні."
+    },
+    choices: [
+      { text: "Explore the temple grounds.", nextScene: 'explore_temple' }
+    ]
+  },
+  'explore_temple': {
+    text: {
+      en: "The temple is empty and silent. There are no monks, only weeds. Aang is confused and sad. While exploring, Sokka finds a Fire Nation helmet.",
+      ua: "Храм порожній і тихий. Тут немає монахів, лише бур'яни. Аанг спантеличений і сумний. Під час дослідження Сокка знаходить шолом Народу Вогню."
+    },
+    choices: [
+      { text: "Hide the helmet from Aang.", nextScene: 'hide_helmet' },
+      { text: "Show Aang the helmet.", nextScene: 'show_helmet' }
+    ]
+  },
+  'hide_helmet': {
+    text: {
+      en: "You and Sokka agree to hide the helmet. You don't want to devastate Aang by showing him proof that firebenders were here. You distract him by exploring another area.",
+      ua: "Ти і Сокка погоджуєтеся сховати шолом. Ти не хочеш спустошувати Аанга, показуючи йому доказ того, що тут були маги вогню. Ти відволікаєш його, досліджуючи іншу територію."
+    },
+    choices: [
+      { text: "Aang leads you to a locked sanctuary door.", nextScene: 'sanctuary' }
+    ]
+  },
+  'show_helmet': {
+    text: {
+      en: "You show Aang the helmet. He is quiet for a moment, but says they probably escaped. He seems to be in denial. He quickly changes the subject and leads you towards a special building.",
+      ua: "Ти показуєш Аангу шолом. Він на мить замовкає, але каже, що вони, мабуть, втекли. Здається, він заперечує реальність. Він швидко змінює тему і веде вас до особливої будівлі."
+    },
+    choices: [
+      { text: "Follow him to the sanctuary.", nextScene: 'sanctuary' }
+    ]
+  },
+  'sanctuary': {
+    text: {
+      en: "Aang brings you to the Air Temple sanctuary. He says his master told him he would meet someone inside who would guide him. As he opens the door with airbending, you all spot a flying lemur!",
+      ua: "Аанг приводить вас до святилища Храму Повітря. Він каже, що його майстер сказав йому, що всередині він зустріне когось, хто направить його. Коли він відкриває двері за допомогою магії повітря, ви всі помічаєте літаючого лемура!"
+    },
+    choices: [
+      { text: "Chase the lemur!", nextScene: 'chase_lemur' },
+      { text: "Enter the sanctuary.", nextScene: 'enter_sanctuary' }
+    ]
+  },
+  'chase_lemur': {
+    text: {
+      en: "Sokka, hungry, chases the lemur hoping to eat it. Aang chases it because he wants a pet. They run off, leaving you alone. You decide to follow Aang.",
+      ua: "Сокка, голодний, женеться за лемуром, сподіваючись його з'їсти. Аанг женеться за ним, бо хоче домашнього улюбленця. Вони тікають, залишаючи тебе саму. Ти вирішуєш піти за Аангом."
+    },
+    choices: [
+      { text: "You find Aang in a dark cave...", nextScene: 'gyatso_room' }
+    ]
+  },
+  'enter_sanctuary': {
+    text: {
+      en: "You enter the sanctuary. It is filled with statues of all the past Avatars. Aang recognizes Avatar Roku, his previous life. As he gets closer to the statues, his eyes begin to glow!",
+      ua: "Ви заходите до святилища. Воно заповнене статуями всіх минулих Аватарів. Аанг впізнає Аватара Року, своє попереднє життя. Коли він наближається до статуй, його очі починають світитися!"
+    },
+    choices: [
+      { text: "Try to talk to him.", nextScene: 'calm_aang' },
+      { text: "Leave him alone.", nextScene: 'gyatso_room' }
+    ]
+  },
+  'gyatso_room': {
+    text: {
+      en: "You find Aang in another room. He has discovered the skeleton of his master, Monk Gyatso, surrounded by Fire Nation armor. The truth is overwhelming. Aang's eyes and tattoos glow with immense power. He has entered the Avatar State!",
+      ua: "Ти знаходиш Аанга в іншій кімнаті. Він виявив скелет свого майстра, Монаха Гіяцо, оточений обладунками Народу Вогню. Правда є нестерпною. Очі та татуювання Аанга світяться величезною силою. Він увійшов у Стан Аватара!"
+    },
+    choices: [
+      { text: "Try to calm him down.", nextScene: 'calm_aang' }
+    ]
+  },
+  'calm_aang': {
+    text: {
+      en: "The wind howls around you as Aang's power rages. You reach out and tell him that you and Sokka are his family now. Your words reach him, and he slowly calms down, the glowing fades.",
+      ua: "Вітер виє навколо вас, поки сила Аанга бушує. Ти простягаєш руку і кажеш йому, що ти і Сокка тепер його сім'я. Твої слова доходять до нього, і він повільно заспокоюється, світіння згасає."
+    },
+    choices: [
+      { text: "You found the last airbender.", nextScene: 'meet_momo' }
+    ]
+  },
+  'meet_momo': {
+    text: {
+      en: "Aang is heartbroken, realizing he truly is the last airbender. Just then, the flying lemur appears and lands on his arm. Aang decides to name him Momo, and he becomes the newest member of your family.",
+      ua: "Аанг з розбитим серцем усвідомлює, що він справді останній маг повітря. Саме тоді з'являється літаючий лемур і сідає йому на руку. Аанг вирішує назвати його Момо, і він стає найновішим членом вашої родини."
+    },
+    choices: [
+      { text: "It's time to leave the temple.", nextScene: 'to_kyoshi' }
+    ]
+  },
+
+  /* ---------- EPISODE 4: The Warriors of Kyoshi ---------- */
+  'to_kyoshi': {
+    text: {
+      en: "To cheer himself up, Aang decides you should all take a detour to ride the giant elephant koi near Kyoshi Island. Sokka complains, but Aang insists on having some fun.",
+      ua: "Щоб підняти собі настрій, Аанг вирішує, що ви всі повинні зробити гак, щоб покататися на гігантських слонових коропах біля острова Кіоші. Сокка скаржиться, але Аанг наполягає на розвагах."
+    },
+    choices: [
+      { text: "Let Aang ride the fish.", nextScene: 'unagi_attack' }
+    ]
+  },
+  'unagi_attack': {
+    text: {
+      en: "While Aang is riding the koi, a giant sea serpent, the Unagi, attacks! It drags him underwater. You and Sokka scream for him to get out of the water.",
+      ua: "Поки Аанг катається на коропі, на нього нападає гігантський морський змій, Унагі! Він затягує його під воду. Ти і Сокка кричите, щоб він вибирався з води."
+    },
+    choices: [
+      { text: "Suddenly, you are surrounded!", nextScene: 'captured_kyoshi' }
+    ]
+  },
+  'captured_kyoshi': {
+    text: {
+      en: "Before you can help Aang, you are ambushed and captured by warriors in green armor and face paint. Sokka is furious when he learns his captors are all girls.",
+      ua: "Перш ніж ти встигаєш допомогти Аангу, вас захоплюють воїни в зелених обладунках і з розфарбованими обличчями. Сокка розлючений, коли дізнається, що його нападники — дівчата."
+    },
+    choices: [
+      { text: "Aang appears and proves he is the Avatar.", nextScene: 'village_admiration' }
+    ]
+  },
+  'village_admiration': {
+    text: {
+      en: "The warriors, led by Suki, realize Aang is the Avatar and release you. The entire village welcomes you as honored guests. Aang loves the attention and starts showing off for his crowd of fans, which annoys you.",
+      ua: "Воїни, на чолі з Сукі, розуміють, що Аанг — Аватар, і відпускають вас. Усе селище вітає вас як почесних гостей. Аангу подобається увага, і він починає хизуватися перед натовпом своїх шанувальників, що тебе дратує."
+    },
+    choices: [
+      { text: "Let Aang have his fun.", nextScene: 'sokka_trains' },
+      { text: "Remind Aang you need to leave soon.", nextScene: 'argue_with_aang' }
+    ]
+  },
+  'sokka_trains': {
+    text: {
+      en: "While Aang shows off, Sokka, humbled by his defeat, asks Suki to teach him their fighting style. He apologizes for being sexist and agrees to train with the girls, even wearing their uniform.",
+      ua: "Поки Аанг хизується, Сокка, принижений своєю поразкою, просить Сукі навчити його їхньому стилю бою. Він вибачається за сексизм і погоджується тренуватися з дівчатами, навіть одягаючи їхню уніформу."
+    },
+    choices: [
+      { text: "Suddenly, the village is attacked!", nextScene: 'zuko_attacks_kyoshi' }
+    ]
+  },
+  'argue_with_aang': {
+    text: {
+      en: "You tell Aang that all this attention is going to his head and that you need to leave. Aang gets defensive and says you're just jealous. You two have an argument.",
+      ua: "Ти кажеш Аангу, що вся ця увага запаморочила йому голову, і що вам потрібно їхати. Аанг стає в захисну позицію і каже, що ти просто заздриш. Ви сваритеся."
+    },
+    choices: [
+      { text: "Suddenly, the village is attacked!", nextScene: 'zuko_attacks_kyoshi' }
+    ]
+  },
+  'zuko_attacks_kyoshi': {
+    text: {
+      en: "Prince Zuko has tracked you to Kyoshi! He and his soldiers attack the village, setting fire to buildings and demanding the Avatar.",
+      ua: "Принц Зуко вистежив вас до Кіоші! Він та його солдати нападають на селище, підпалюючи будинки та вимагаючи Аватара."
+    },
+    choices: [
+      { text: "Help defend the village.", nextScene: 'village_battle' }
+    ]
+  },
+  'village_battle': {
+    text: {
+      en: "Aang realizes his presence brought this danger. He decides to face Zuko. Sokka and the Kyoshi Warriors fight the soldiers. Aang, wanting to save the town without anyone else getting hurt, comes up with a plan.",
+      ua: "Аанг розуміє, що його присутність принесла цю небезпеку. Він вирішує протистояти Зуко. Сокка і Воїни Кіоші б'ються з солдатами. Аанг, бажаючи врятувати місто, щоб ніхто більше не постраждав, придумує план."
+    },
+    choices: [
+      { text: "He jumps into the water to get the Unagi!", nextScene: 'unagi_ride' }
+    ]
+  },
+  'unagi_ride': {
+    text: {
+      en: "Aang summons the Unagi! He rides the giant sea serpent, using its water spray to put out the fires and chase away Zuko and his soldiers. The village is saved!",
+      ua: "Аанг викликає Унагі! Він їде на гігантському морському змії, використовуючи його струмінь води, щоб загасити пожежі та прогнати Зуко і його солдатів. Селище врятовано!"
+    },
+    choices: [
+      { text: "It's time to leave Kyoshi Island.", nextScene: 'leave_kyoshi' }
+    ]
+  },
+  'leave_kyoshi': {
+    text: {
+      en: "The town thanks Aang, but he is sad. He knows that as long as he stays in one place, he will bring danger to the people there. It is time to leave and continue your journey to the North Pole.",
+      ua: "Місто дякує Аангу, але йому сумно. Він знає, що доки він залишається на одному місці, він буде нести небезпеку людям там. Час їхати і продовжувати вашу подорож до Північного полюса."
+    },
+    choices: [
+      { text: "Continue the journey.", nextScene: 'journey_continues' }
+    ]
+  },
+
+  /* ---------- END STATE ---------- */
+  'journey_continues': {
+    text: {
+      en: "You, Aang, Sokka, and Momo fly away on Appa. You have escaped the Fire Nation for now and learned valuable lessons. The world is large, and your quest to master the elements has only just begun. <span class='game-success'>TO BE CONTINUED...</span>",
+      ua: "Ти, Аанг, Сокка і Момо відлітаєте на Аппі. Ви поки що втекли від Народу Вогню і засвоїли цінні уроки. Світ великий, і ваш квест з опанування стихій тільки почався. <span class='game-success'>ДАЛІ БУДЕ...</span>"
+    },
+    choices: [
+      { text: "Play Again From the Start?", nextScene: 'start' }
+    ]
+  }
+};
+
+
+
+
+// Expanded Vocabulary based on Avatar: The Last Airbender, Episodes 1-4 (Generic Terms)
+const vocabulary = [
+  // Peoples & Roles
+  "Avatar", "Water Tribe", "Earth Kingdom", "Fire Nation", "Air Nomads",
+  "firebender", "waterbender", "airbender", "warrior", "monk", "prince", "general",
+  "commander", "captain", "guards", "sages", "crew", "foreigner", "enemy",
+  "family", "grandmother", "father", "mother", "brother", "sister", "uncle",
+  "grandchildren", "pupil", "master", "traitor", "hero", "leader", "allies", "outsiders",
+
+  // Bending & Abilities
+  "waterbending", "airbending", "firebending", "Avatar State", "element", "power", "skills",
+  "magic", "spirit", "destiny",
+
+  // Locations
+  "South Pole", "North Pole", "village", "tribe", "nation", "kingdom", "world",
+  "iceberg", "ship", "warship", "docks", "harbor", "prison hold", "quarters",
+  "watchtower", "temple", "air temple", "sanctuary", "island", "shores", "town",
+  "capital", "home",
+
+  // Items & Objects
+  "boomerang", "spear", "glider", "staff", "canoe", "flare", "map", "fan",
+  "sleeping bag", "armor", "uniform", "defenses", "weapon", "supplies", "tea",
+  "torch", "rope", "cage", "handcuffs", "statue", "throne", "scar",
+
+  // Creatures
+  "fish", "penguin", "flying bison", "lemur", "sea serpent", "elephant koi",
+  "prickle snake", "hog monkey", "hopping llama", "animals",
+
+  // Key Concepts & Ideas
+  "balance", "peace", "harmony", "war", "battle", "attack", "victory", "defeat",
+  "search", "mission", "journey", "hope", "fear", "wisdom", "honor", "disgrace",
+  "courage", "loyalty", "freedom", "legend", "prophecy", "cycle", "reincarnation",
+  "past lives", "century", "madness", "threat", "danger", "secret", "exception",
+  "grudge", "comfort zone", "potty break", "booby trap", "technique", "basics",
+
+  // Actions (Verbs)
+  "attack", "banish", "believe", "bend", "blame", "block", "breathe", "bring", "capture",
+  "carry", "catch", "challenge", "change", "chase", "choose", "clean", "confess",
+  "control", "cook", "count on", "crash", "defeat", "defend", "destroy", "disappear",
+  "discover", "drill", "duel", "escape", "face", "fail", "fight", "find", "fly",
+  "forbid", "forgive", "freeze", "get away", "give up", "guide", "haunt", "head",
+  "help", "hide", "hold back", "humiliate", "hunt", "interrupt", "invade", "interrogate",
+  "join", "journey", "keep", "kid", "kill", "know", "land", "learn", "leave", "let go",
+  "listen", "lose", "master", "meet", "miss", "move", "need", "notice", "owe",
+  "pass", "play", "practice", "prepare", "protect", "prove", "realize", "return",
+  "ride", "risk", "save", "scare", "search", "see", "sense", "settle down", "show",
+  "signal", "sleep", "smell", "sneeze", "soak", "soar", "spare", "stand", "stop",
+  "stick together", "survive", "take care of", "talk", "teach", "tell", "think",
+  "train", "travel", "treat", "trigger", "try", "underestimate", "vanish", "wake up",
+  "wash", "waste time", "watch", "welcome", "win",
+
+  // Adjectives
+  "ancient", "agile", "annoyed", "bad", "banished", "beautiful", "best", "big",
+  "brave", "calming", "creepy", "dangerous", "dark", "delicious", "devastated",
+  "disgraceful", "disgusted", "each", "easy", "entire", "evil", "excited", "extinct",
+  "favorite", "fine", "first", "fluffy", "forbidden", "foreign", "free", "freakish",
+  "great", "greatest", "happy", "hard", "heavy", "helpful", "honorable", "huge",
+  "impatient", "impossible", "impostor", "incredible", "jealous", "last", "little",
+  "long", "lucky", "magic", "main", "nice", "normal", "other", "own", "paranoid",
+  "pathetic", "powerful", "pretty", "proud", "real", "retired", "rightful", "ruthless",
+  "sacred", "sad", "safe", "scared", "sexist", "simple", "small", "snotty",
+  "special", "strong", "stupid", "sure", "surprised", "suspicious", "tasty",
+  "ten-ton", "terrible", "tired", "true", "ugly", "upset", "weird", "welcome",
+  "whole", "wise", "wrong", "young"
+];
+
+// Translations for the expanded Avatar vocabulary
+const vocabTranslations = {
+  // Peoples & Roles
+  "Avatar": "Аватар", "Water Tribe": "Плем'я Води", "Earth Kingdom": "Царство Землі",
+  "Fire Nation": "Народ Вогню", "Air Nomads": "Повітряні Кочівники", "firebender": "маг вогню",
+  "waterbender": "маг води", "airbender": "маг повітря", "warrior": "воїн", "monk": "монах",
+  "prince": "принц", "general": "генерал", "commander": "командир", "captain": "капітан",
+  "guards": "охорона", "sages": "мудреці", "crew": "команда / екіпаж", "foreigner": "іноземець",
+  "enemy": "ворог", "family": "сім'я / родина", "grandmother": "бабуся", "father": "батько",
+  "mother": "мати", "brother": "брат", "sister": "сестра", "uncle": "дядько",
+  "grandchildren": "онуки", "pupil": "учень", "master": "майстер / учитель", "traitor": "зрадник",
+  "hero": "герой", "leader": "лідер", "allies": "союзники", "outsiders": "чужинці",
+
+  // Bending & Abilities
+  "waterbending": "магія води", "airbending": "магія повітря", "firebending": "магія вогню",
+  "Avatar State": "Стан Аватара", "element": "стихія / елемент", "power": "сила / могутність",
+  "skills": "навички", "magic": "магія / чари", "spirit": "дух", "destiny": "доля",
+
+  // Locations
+  "South Pole": "Південний полюс", "North Pole": "Північний полюс", "village": "селище",
+  "tribe": "плем'я", "nation": "народ / нація", "kingdom": "королівство / царство", "world": "світ",
+  "iceberg": "айсберг", "ship": "корабель", "warship": "військовий корабель", "docks": "доки",
+  "harbor": "гавань", "prison hold": "тюремний трюм", "quarters": "каюти / приміщення",
+  "watchtower": "сторожова вежа", "temple": "храм", "air temple": "храм повітря",
+  "sanctuary": "святилище", "island": "острів", "shores": "береги", "town": "місто",
+  "capital": "столиця", "home": "дім",
+
+  // Items & Objects
+  "boomerang": "бумеранг", "spear": "спис", "glider": "планер", "staff": "посох",
+  "canoe": "каное", "flare": "сигнальна ракета / факел", "map": "карта", "fan": "віяло",
+  "sleeping bag": "спальний мішок", "armor": "обладунки", "uniform": "уніформа",
+  "defenses": "захист / оборона", "weapon": "зброя", "supplies": "припаси", "tea": "чай",
+  "torch": "смолоскип", "rope": "мотузка", "cage": "клітка", "handcuffs": "наручники",
+  "statue": "статуя", "throne": "трон", "scar": "шрам",
+
+  // Creatures
+  "fish": "риба", "penguin": "пінгвін", "flying bison": "літаючий бізон", "lemur": "лемур",
+  "sea serpent": "морський змій", "elephant koi": "слоновий короп", "prickle snake": "колюча змія",
+  "hog monkey": "свино-мавпа", "hopping llama": "стрибаюча лама", "animals": "тварини",
+
+  // Key Concepts & Ideas
+  "balance": "баланс", "peace": "мир", "harmony": "гармонія", "war": "війна", "battle": "битва",
+  "attack": "атака / напад", "victory": "перемога", "defeat": "поразка", "search": "пошук",
+  "mission": "місія", "journey": "подорож", "hope": "надія", "fear": "страх", "wisdom": "мудрість",
+  "honor": "честь", "disgrace": "ганьба", "courage": "сміливість / відвага",
+  "loyalty": "вірність", "freedom": "свобода", "legend": "легенда", "prophecy": "пророцтво",
+  "cycle": "цикл", "reincarnation": "реінкарнація / перевтілення", "past lives": "минулі життя",
+  "century": "століття", "madness": "божевілля", "threat": "загроза", "danger": "небезпека",
+  "secret": "секрет / таємниця", "exception": "виняток", "grudge": "образа", "comfort zone": "зона комфорту",
+  "potty break": "перерва на туалет", "booby trap": "пастка", "technique": "техніка / прийом", "basics": "основи",
+
+  // Actions (Verbs) - infinitive form
+  "attack": "атакувати", "banish": "виганяти", "believe": "вірити", "bend": "підкорювати (стихію)",
+  "blame": "звинувачувати", "block": "блокувати", "breathe": "дихати", "bring": "приносити",
+  "capture": "захоплювати", "carry": "нести", "catch": "ловити", "challenge": "кидати виклик",
+  "change": "змінювати", "chase": "переслідувати", "choose": "обирати", "clean": "чистити",
+  "confess": "зізнаватися", "control": "контролювати", "cook": "готувати", "count on": "розраховувати на",
+  "crash": "врізатися / зазнавати аварії", "defeat": "перемагати (когось)", "defend": "захищати",
+  "destroy": "руйнувати", "disappear": "зникати", "discover": "відкривати / виявляти",
+  "drill": "тренувати(ся)", "duel": "дуелювати", "escape": "втікати", "face": "стикатися з",
+  "fail": "зазнавати невдачі", "fight": "битися", "find": "знаходити", "fly": "літати",
+  "forbid": "забороняти", "forgive": "пробачати", "freeze": "замерзати", "get away": "втікати",
+  "give up": "здаватися", "guide": "направляти", "haunt": "переслідувати (про спогади)",
+  "head": "прямувати", "help": "допомагати", "hide": "ховатися", "hold back": "стримуватися",
+  "humiliate": "принижувати", "hunt": "полювати", "interrupt": "перебивати", "invade": "вторгатися",
+  "interrogate": "допитувати", "join": "приєднуватися", "journey": "подорожувати", "keep": "тримати / зберігати",
+  "kid": "жартувати", "kill": "вбивати", "know": "знати", "land": "приземлятися", "learn": "вчити(ся)",
+  "leave": "залишати", "let go": "відпускати", "listen": "слухати", "lose": "губити / програвати",
+  "master": "опановувати", "meet": "зустрічати", "miss": "сумувати / пропускати", "move": "рухатися",
+  "need": "потребувати", "notice": "помічати", "owe": "бути винним (щось комусь)", "pass": "минати / проходити",
+  "play": "грати", "practice": "практикуватися", "prepare": "готуватися", "protect": "захищати",
+  "prove": "доводити", "realize": "усвідомлювати", "return": "повертатися", "ride": "їздити верхи",
+  "risk": "ризикувати", "save": "рятувати", "scare": "лякати", "search": "шукати", "see": "бачити",
+  "sense": "відчувати", "settle down": "заспокоюватися", "show": "показувати", "signal": "сигналити",
+  "sleep": "спати", "smell": "пахнути / нюхати", "sneeze": "чхати", "soak": "намочити",
+  "soar": "злітати / ширяти", "spare": "щадити", "stand": "стояти", "stop": "зупинятися",
+  "stick together": "триматися разом", "survive": "виживати", "take care of": "піклуватися про",
+  "talk": "говорити", "teach": "навчати", "tell": "розповідати", "think": "думати",
+  "train": "тренувати(ся)", "travel": "подорожувати", "treat": "ставитися до (когось)",
+  "trigger": "спрацьовувати (про пастку)", "try": "намагатися", "underestimate": "недооцінювати",
+  "vanish": "зникати", "wake up": "прокидатися", "wash": "мити", "waste time": "марнувати час",
+  "watch": "спостерігати", "welcome": "вітати", "win": "перемагати",
+
+  // Adjectives
+  "ancient": "древній", "agile": "спритний", "annoyed": "роздратований", "bad": "поганий",
+  "banished": "вигнаний", "beautiful": "красивий", "best": "найкращий", "big": "великий",
+  "brave": "хоробрий", "calming": "заспокійливий", "creepy": "моторошний", "dangerous": "небезпечний",
+  "dark": "темний", "delicious": "смачний", "devastated": "спустошений (емоційно)",
+  "disgraceful": "ганебний", "disgusted": "огидний", "each": "кожен", "easy": "легкий",
+  "entire": "цілий", "evil": "злий", "excited": "схвильований", "extinct": "вимерлий",
+  "favorite": "улюблений", "fine": "добре / гаразд", "first": "перший", "fluffy": "пухнастий",
+  "forbidden": "заборонений", "foreign": "іноземний", "free": "вільний", "freakish": "дивацький",
+  "great": "великий / чудовий", "greatest": "найвеличніший", "happy": "щасливий", "hard": "важкий",
+  "heavy": "важкий", "helpful": "корисний", "honorable": "почесний / гідний", "huge": "величезний",
+  "impatient": "нетерплячий", "impossible": "неможливий", "impostor": "самозванець",
+  "incredible": "неймовірний", "jealous": "ревнивий / заздрісний", "last": "останній",
+  "little": "маленький", "long": "довгий", "lucky": "щасливий / везучий", "magic": "магічний",
+  "main": "головний", "nice": "милий / приємний", "normal": "звичайний", "other": "інший",
+  "own": "власний", "paranoid": "параноїдальний", "pathetic": "жалюгідний", "powerful": "могутній",
+  "pretty": "гарненький", "proud": "гордий", "real": "справжній", "retired": "у відставці",
+  "rightful": "законний", "ruthless": "безжальний", "sacred": "священний", "sad": "сумний",
+  "safe": "безпечний", "scared": "наляканий", "sexist": "сексистський", "simple": "простий",
+  "small": "маленький", "snotty": "сопливий", "special": "особливий", "strong": "сильний",
+  "stupid": "дурний", "sure": "впевнений", "surprised": "здивований", "suspicious": "підозрілий",
+  "tasty": "смачний", "ten-ton": "десятитонний", "terrible": "жахливий", "tired": "втомлений",
+  "true": "правдивий", "ugly": "потворний", "upset": "засмучений", "weird": "дивний",
+  "welcome": "бажаний", "whole": "цілий", "wise": "мудрий", "wrong": "неправильний", "young": "молодий"
+};
+
+
+
+
+// --- DOM Elements ---
+const sceneTextEl = document.getElementById('scene-text');
+const choicesContainerEl = document.getElementById('choices-container');
+const outcomeDisplayEl = document.getElementById('outcome-display');
+const voiceButton = document.getElementById('voice-button');
+const voiceStatusEl = document.getElementById('voice-status');
+const startChallengeBtn = document.getElementById('start-challenge-btn'); // Renamed
+const vocabListContainer = document.getElementById('vocab-list-container');
+
+// --- Game State ---
+let currentSceneId = 'start';
+let currentChoices = []; // Holds the {text, nextScene} objects for the current scene
+let isMemoryCheckPhase = false; // Is the player currently supposed to recall the English text?
+let isChoiceSpeakingPhase = false; // Is the player supposed to speak their choice?
+let originalEnglishTextForMemoryCheck = ""; // Stores formatted EN text for recall comparison/display
+let formattedUkrainianTextForMemoryCheck = "";// Stores formatted UA text to show during recall
+let memoryCheckPassed = false; // Did the player succeed in the last memory check?
+let ttsUnlocked = false; // Has the user interaction unlocked text-to-speech?
+let micPermissionGranted = null; // null: unknown, true: granted, false: denied
+let isListening = false; // Is the speech recognition actively listening?
+
+const MEMORY_SIMILARITY_THRESHOLD = 0.50; // Required similarity (0-1) for memory check
+
+// --- Text-to-Speech (TTS) Setup ---
+const synth = window.speechSynthesis;
+let currentUtterance = null;
+let selectedVoice = null; // Holds the chosen English voice object
+let voicesLoaded = false;
+
+if (synth && typeof synth.onvoiceschanged !== 'undefined') {
+    synth.onvoiceschanged = () => {
+        voicesLoaded = true;
+        console.log("[Init] System voices loaded/changed:", synth.getVoices().length);
+         // Re-select best voice if they change after initial load
+         if (ttsUnlocked) { // Only if game has started/audio enabled
+            selectedVoice = getBestVoice();
+            console.log("[TTS] Voices changed, re-selected voice:", selectedVoice ? selectedVoice.name : "default");
+         }
+    };
+}
+if (synth && synth.getVoices().length === 0) {
+    synth.getVoices(); // Try to preload
+}
+
+
+// --- Speech Recognition Setup ---
+const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let recognition = null; // Holds the SpeechRecognition instance
+
+
+// --- Helper Functions ---
+
+/** Removes HTML tags */
+function stripHtml(htmlString) {
+    if (!htmlString) return "";
+    const tmp = document.createElement("DIV");
+    tmp.innerHTML = htmlString;
+    return tmp.textContent || tmp.innerText || "";
+}
+
+/** Formats text: highlights vocab & location */
+function formatText(text) {
+    if (!text) return "";
+    let formattedText = String(text);
+    formattedText = formattedText.replace(/\[Location: (.*?)\]/g, '<span class="location-text">Location: $1</span>');
+    const sortedVocab = [...vocabulary].sort((a, b) => b.length - a.length);
+    sortedVocab.forEach(word => {
+        try {
+            const escapedWord = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            // Regex to match whole words, avoiding matches inside HTML tags or already highlighted spans
+            const regex = new RegExp(`(?<!<[^>]*?)(?<!<(?:span|div|p)\\s[^>]*>)(?<!<span class="[^"]*">)(\\b${escapedWord}\\b)(?![^<]*?>)(?![^<]*<\\/(?:span|div|p)>)`, 'gi');
+             formattedText = formattedText.replace(regex, (match) => {
+                 // Basic check to avoid re-wrapping common tags if regex fails
+                 if (match.toLowerCase().includes('<span class') || match.toLowerCase().includes('<div') ) return match;
+                 return `<span class="keyword-highlight">${match}</span>`;
+            });
+        } catch (e) { console.error(`[FormatText] Regex error for word "${word}":`, e); }
+    });
+    return formattedText;
+}
+
+/** Updates the vocabulary list based on current scene text */
+function updateVocabList(currentText) {
+    if (!vocabListContainer) return;
+    vocabListContainer.innerHTML = '';
+    const plainTextLower = currentText.toLowerCase();
+    const foundWords = new Set();
+
+    vocabulary.forEach(word => {
+        try {
+            const escapedWord = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            const regex = new RegExp(`\\b${escapedWord}\\b`, 'i');
+            if (regex.test(plainTextLower)) {
+                foundWords.add(word);
+            }
+        } catch (e) { console.error(`[VocabList] Regex error checking word "${word}":`, e); }
+    });
+
+    if (foundWords.size > 0) {
+        const ul = document.createElement('ul');
+        const sortedFoundWords = Array.from(foundWords).sort();
+        sortedFoundWords.forEach(enWord => {
+            const uaWord = vocabTranslations[enWord] || '[Translation N/A]';
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="ua-term">${uaWord}</span> - ${enWord}`;
+            ul.appendChild(li);
+        });
+        vocabListContainer.appendChild(ul);
+        // Visibility controlled by game state functions now
+    } else {
+        // Ensure it's hidden if no words found
+         vocabListContainer.classList.add('hidden');
+    }
+}
+
+/** Calculates Levenshtein distance */
+function levenshteinDistance(a = "", b = "") {
+    // (Implementation remains the same as original)
+      const strA = String(a).toLowerCase();
+      const strB = String(b).toLowerCase();
+      if (strA.length === 0) return strB.length;
+      if (strB.length === 0) return strA.length;
+      const matrix = Array(strB.length + 1).fill(null).map(() => Array(strA.length + 1).fill(null));
+      for (let i = 0; i <= strA.length; i++) matrix[0][i] = i;
+      for (let j = 0; j <= strB.length; j++) matrix[j][0] = j;
+      for (let j = 1; j <= strB.length; j++) {
+          for (let i = 1; i <= strA.length; i++) {
+              const cost = strA[i - 1] === strB[j - 1] ? 0 : 1;
+              matrix[j][i] = Math.min(
+                  matrix[j][i - 1] + 1,     // Deletion
+                  matrix[j - 1][i] + 1,     // Insertion
+                  matrix[j - 1][i - 1] + cost // Substitution
+              );
+          }
+      }
+      return matrix[strB.length][strA.length];
+}
+
+/** Calculates similarity score (0-1) */
+function calculateSimilarity(text1, text2) {
+    const distance = levenshteinDistance(text1, text2);
+    const len1 = String(text1).length;
+    const len2 = String(text2).length;
+    const maxLength = Math.max(len1, len2);
+    if (maxLength === 0) return 1;
+    const similarity = 1 - (distance / maxLength);
+    return Math.max(0, similarity);
+}
+
+/** Displays English text after memory check, highlighting matched words */
+function displayAndHighlightMemoryCheck(originalHTML, spokenTranscript) {
+     const plainOriginal = stripHtml(originalHTML).toLowerCase();
+     const originalWords = plainOriginal.split(/\s+/).filter(w => w.length > 0);
+     const spokenWords = spokenTranscript ? spokenTranscript.toLowerCase().split(/\s+/).filter(w => w.length > 0) : [];
+     const spokenWordSet = new Set(spokenWords);
+     let highlightedHTML = originalHTML; // Start with the formatted HTML
+     const matchedOriginalWords = new Set();
+
+     originalWords.forEach(word => {
+         const cleanWord = word.replace(/[.,!?;:]/g, '');
+         if (cleanWord && spokenWordSet.has(cleanWord)) {
+             matchedOriginalWords.add(cleanWord);
+         }
+     });
+      console.log("[Highlight] Matched words found:", Array.from(matchedOriginalWords));
+
+     // Apply memory-match class to matched words in the original *formatted* HTML
+     matchedOriginalWords.forEach(word => {
+         if (!word) return;
+         try {
+             const escapedWord = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+             // More specific regex to avoid matching inside tags or already wrapped spans
+             const regex = new RegExp(`(?<=>[^<]*)(\\b${escapedWord}\\b)(?=[^<]*<)|(?<!=["'\\/])(\\b${escapedWord}\\b)(?!["'\\/])`, 'gi');
+
+             highlightedHTML = highlightedHTML.replace(regex, (match, group1, group2) => {
+                 const actualMatch = group1 || group2; // Get the matched word
+                 // Check if the match is already inside a span (basic check)
+                 // This is tricky - aiming to not double-wrap
+                  const surroundingChars = highlightedHTML.substring(
+                      Math.max(0, highlightedHTML.indexOf(actualMatch) - 10),
+                      highlightedHTML.indexOf(actualMatch) + actualMatch.length + 10
+                 );
+                 if (surroundingChars.includes('<span class="memory-match">') || surroundingChars.includes('<span class="keyword-highlight">')) {
+                     return actualMatch; // Avoid re-wrapping if it looks like it's already wrapped
+                 }
+                 return `<span class="memory-match">${actualMatch}</span>`;
+             });
+         } catch (e) { console.error(`[Highlight] Regex error for word "${word}":`, e); }
+     });
+
+     sceneTextEl.innerHTML = highlightedHTML; // Display the result with highlights
+     sceneTextEl.classList.remove('memory-recall-active');
+}
+
+
+// --- UI Element State Management ---
+
+/** Updates voice button text and style based on game state */
+function updateVoiceButtonUI() {
+    if (!voiceButton) return;
+    voiceButton.classList.remove('listening', 'bg-accent', 'hover:bg-accent-dark', 'bg-info');
+
+    if (isListening) {
+        voiceButton.classList.add('listening', 'bg-info');
+        if (isMemoryCheckPhase) {
+            voiceButton.textContent = 'Listening for Recall... 👂';
+        } else if (isChoiceSpeakingPhase) {
+            voiceButton.textContent = 'Listening for Choice... 👂';
+        } else {
+             voiceButton.textContent = 'Listening... 👂'; // Generic fallback
+        }
+    } else {
+         // Default button state
+        voiceButton.classList.add('bg-accent', 'hover:bg-accent-dark');
+        if (isMemoryCheckPhase) {
+            voiceButton.textContent = 'Speak English Text 🎤';
+            voiceStatusEl.textContent = "Click button above to speak the English text you heard.";
+            voiceStatusEl.className = 'text-highlight';
+        } else if (isChoiceSpeakingPhase) {
+            voiceButton.textContent = 'Speak Choice 🎤';
+            voiceStatusEl.textContent = "Click button above to speak your choice.";
+             voiceStatusEl.className = 'text-info';
+        } else {
+             // Button shouldn't normally be active here unless end/error
+             voiceButton.textContent = 'Speak Action 🎤';
+        }
+    }
+
+    // Handle disabled states last
+     if (!SpeechRecognitionAPI) {
+        voiceButton.disabled = true;
+        voiceButton.textContent = 'Voice Not Supported';
+    } else if (micPermissionGranted === false) {
+        voiceButton.disabled = true;
+        voiceButton.textContent = 'Mic Disabled';
+    } else {
+         // Enable button if mic is ok AND it's relevant phase, disable otherwise
+         voiceButton.disabled = !(isMemoryCheckPhase || isChoiceSpeakingPhase);
+    }
+}
+
+/** Hides or shows the choices container */
+ function setChoicesVisibility(visible) {
+     if (visible) {
+         choicesContainerEl.classList.remove('hidden');
+         // Note: Buttons themselves remain non-interactive per CSS/JS logic change
+     } else {
+         choicesContainerEl.classList.add('hidden');
+     }
+ }
+
+/** Hides or shows the vocabulary list */
+function setVocabListVisibility(visible) {
+     if (visible) {
+         vocabListContainer.classList.remove('hidden');
+     } else {
+         vocabListContainer.classList.add('hidden');
+     }
+}
+
+// --- Text-to-Speech (TTS) Functionality ---
+
+/** Finds the best available English voice */
+function getBestVoice() {
+    const voices = synth.getVoices();
+    // Prefer enhanced/premium, then specific known good ones, then any US/GB, then any English
+    return voices.find(v => v.lang.startsWith('en') && (v.name.toLowerCase().includes('enhanced') || v.name.toLowerCase().includes('premium'))) ||
+           voices.find(v => v.lang.startsWith('en') && (v.name.toLowerCase().includes('daniel') || v.name.toLowerCase().includes('samantha'))) ||
+           voices.find(v => v.lang.toLowerCase() === 'en-gb') ||
+           voices.find(v => v.lang.toLowerCase() === 'en-us') ||
+           voices.find(v => v.lang.startsWith('en')) ||
+           null;
+}
+
+/** Speaks text using selected voice */
+function speakText(textToSpeak, lang = 'en-GB', onEndCallback = null) {
+    const availableVoices = synth.getVoices();
+    // console.log(`[TTS Debug] speakText called. Voices: ${availableVoices.length}. Loaded: ${voicesLoaded}. Unlocked: ${ttsUnlocked}`);
+
+    if (!synth || !ttsUnlocked || !textToSpeak) {
+        console.warn(`[TTS] Skipping speech (Synth: ${!!synth}, Unlocked: ${ttsUnlocked}, Text: ${!!textToSpeak})`);
+        if (onEndCallback) setTimeout(onEndCallback, 0); // Ensure callback runs even if skipped
+        return;
+    }
+
+    if (synth.speaking) {
+        console.log("[TTS] Cancelling previous utterance sequence.");
+        synth.cancel(); // Cancel any ongoing/queued speech first
+    }
+
+    const plainText = stripHtml(textToSpeak).trim();
+    if (!plainText) {
+        console.log("[TTS] No text to speak after trimming.");
+        if (onEndCallback) setTimeout(onEndCallback, 0); // Ensure callback runs even if empty
+        return;
+    }
+
+    // --- Sentence Splitting ---
+    // Match sequences ending in sentence punctuation (. ! ?) OR the final part of the string.
+    const sentences = plainText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
+    const validSentences = sentences.map(s => s.trim()).filter(s => s.length > 0);
+
+    if (validSentences.length === 0) {
+        console.log("[TTS] No valid sentences found after splitting.");
+        if (onEndCallback) setTimeout(onEndCallback, 0);
+        return;
+    }
+    // console.log(`[TTS] Split into ${validSentences.length} sentences.`);
+
+    let callbackCalled = false; // Flag to prevent multiple calls to onEndCallback
+    let fallbackTimer = null;   // Handle for the safety timeout
+
+    // --- Completion Handler ---
+    // Central function to handle cleanup and calling the final callback
+    const handleCompletion = (error = null) => {
+        if (callbackCalled) return; // Already handled
+        callbackCalled = true;
+        clearTimeout(fallbackTimer); // Clear timer
+        sceneTextEl.classList.remove('speaking'); // UI cleanup
+
+        if (error) {
+            console.error('[TTS] Utterance error during sequence:', error);
+            // Cancel any further utterances that might be queued
+            synth.cancel();
+        } else {
+            // console.log('[TTS] Sentence sequence successfully finished.');
+        }
+
+        // Call the original callback provided to speakText
+        if (onEndCallback) {
+            try {
+                onEndCallback();
+            } catch (e) {
+                console.error("[TTS] Error executing onEndCallback:", e);
+            }
+        }
+    };
+
+    // --- Create Utterances ---
+    const utterances = validSentences.map((sentence, index) => {
+        const utterance = new SpeechSynthesisUtterance(sentence);
+        utterance.lang = selectedVoice ? selectedVoice.lang : lang;
+        utterance.voice = selectedVoice;
+
+        // General error handler for any utterance in the sequence
+        utterance.onerror = (event) => {
+            handleCompletion(`Error on sentence ${index + 1}: ${event.error}`);
+        };
+
+        // The *last* utterance's onend triggers the final successful completion
+        if (index === validSentences.length - 1) {
+            utterance.onend = () => {
+                handleCompletion(); // Success path
+            };
+        } else {
+            // Optional: Log when intermediate sentences finish
+            utterance.onend = () => {
+                // console.log(`[TTS] Sentence ${index + 1} of ${validSentences.length} ended.`);
+            };
+        }
+
+        // The *first* utterance's onstart visually indicates speaking has begun
+        if (index === 0) {
+            utterance.onstart = () => {
+                // console.log('[TTS] Sentence sequence started.');
+                sceneTextEl.classList.add('speaking');
+            };
+        }
+
+        return utterance;
+    });
+
+    // --- Safety Timeout (for the whole sequence) ---
+    const totalChars = plainText.length;
+    // Estimate: time per char + overhead per sentence + buffer
+    const estimatedDurationMs = (totalChars / 12) * 1000 + (validSentences.length * 1200) + 6000; // Adjusted estimation
+    // Ensure a minimum reasonable time per sentence
+    const minDuration = Math.max(5000 * validSentences.length, 10000); // e.g. 5s/sentence, min 10s total
+    const maxDurationMs = Math.max(estimatedDurationMs, minDuration);
+    // console.log(`[TTS] Setting fallback timer for sequence: ${maxDurationMs}ms`);
+
+    fallbackTimer = setTimeout(() => {
+        if (!callbackCalled) {
+            console.warn(`[TTS] Fallback timer triggered for sequence after ${maxDurationMs}ms. Speech may be stuck. Forcing callback.`);
+            handleCompletion("Fallback Timeout"); // Call completion handler with error indication
+        }
+    }, maxDurationMs);
+    // --- End Safety Timeout ---
+
+    // --- Queue all utterances for speaking ---
+    // console.log(`[TTS] Queuing ${utterances.length} utterances.`);
+    try {
+         utterances.forEach(utt => synth.speak(utt));
+    } catch (e) {
+         console.error("[TTS] Error calling synth.speak() while queuing:", e);
+         // If speaking fails immediately, trigger completion
+         handleCompletion("Speak Error during queuing");
+    }
+}
+
+// --- Speech Recognition Functionality ---
+
+/** Initializes Speech Recognition */
+function initializeSpeechRecognition() {
+     if (!SpeechRecognitionAPI) {
+         console.warn('[SpeechRec] API not supported.');
+         updateVoiceButtonUI(); // Ensure button shows unsupported state
+         return;
+     }
+     if (recognition) {
+         console.log("[SpeechRec] Already initialized.");
+         return; // Avoid re-initializing
+     }
+
+    try {
+        recognition = new SpeechRecognitionAPI();
+        recognition.continuous = true; // Process single utterance
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+            isListening = true;
+            updateVoiceButtonUI();
+            console.log('[SpeechRec] Event: onstart');
+        };
+
+        recognition.onresult = (event) => {
+            console.log('[SpeechRec] Event: onresult');
+            let transcript = "";
+            if (event.results && event.results[0] && event.results[0][0]) {
+                transcript = event.results[0][0].transcript.trim();
+            } else {
+                 console.warn("[SpeechRec] onresult: Received empty/malformed results.");
+            }
+            console.log(`[SpeechRec] Recognized: "${transcript}"`);
+
+             // Stop listening once we have a result
+             if (recognition && isListening) {
+                 try { recognition.stop(); } catch(e) { console.warn("Error stopping recognition after result:", e); }
+             }
+
+            if (isMemoryCheckPhase) {
+                processMemoryCheckResult(transcript);
+            } else if (isChoiceSpeakingPhase) {
+                processChoiceSpeechResult(transcript);
+            } else {
+                 console.warn("[SpeechRec] Received result in unexpected phase.");
+            }
+        };
+
+        recognition.onerror = (event) => {
+            console.error('[SpeechRec] Event: onerror - Error:', event.error, 'Message:', event.message);
+            let errorMessage = 'Speech recognition error';
+            switch (event.error) {
+                case 'no-speech': errorMessage = 'No speech detected.'; break;
+                case 'audio-capture': errorMessage = 'Mic error. Check connection/permissions.'; break;
+                case 'not-allowed': errorMessage = 'Mic access denied.'; micPermissionGranted = false; break; // Update state
+                case 'network': errorMessage = 'Network error.'; break;
+                case 'aborted': errorMessage = 'Speech input stopped.'; break; // Less alarming
+                 case 'service-not-allowed': errorMessage = 'Speech service denied.'; break;
+                default: errorMessage = `Error: ${event.error || 'Unknown'}`;
+            }
+            if (event.error !== 'aborted') { // Don't show status for manual aborts if possible
+                voiceStatusEl.textContent = `Error: ${errorMessage}`;
+                voiceStatusEl.className = 'text-danger';
+            }
+            // Let onend handle final UI state reset
+        };
+
+        recognition.onend = () => {
+            console.log('[SpeechRec] Event: onend');
+            isListening = false;
+            updateVoiceButtonUI(); // Reset button state after listening stops
+        };
+
+         console.log("[SpeechRec] Initialization complete.");
+
+    } catch (e) {
+        console.error("[SpeechRec] Error creating SpeechRecognition object:", e);
+        recognition = null; // Ensure it's null if creation failed
+        updateVoiceButtonUI(); // Update button to show error/unsupported
+    }
+}
+// --- End of Chunk 1 ---
+// --- Start of Chunk 2 ---
+// (Continuing script from Chunk 1)
+
+/** Processes speech result during memory check */
+function processMemoryCheckResult(transcript) {
+    console.log('[MemoryCheck] Processing transcript:', `"${transcript}"`);
+    const feedbackArea = document.getElementById('feedback-percentage-area'); // Get the new feedback element
+
+    // Clear any previous feedback first
+    if (feedbackArea) {
+        feedbackArea.textContent = '';
+        // Reset classes, removing color helpers like text-success or text-highlight
+        feedbackArea.className = 'text-center font-semibold mt-2 min-h-[1.2em]';
+    }
+
+    if (!originalEnglishTextForMemoryCheck) {
+        console.error("[MemoryCheck] ERROR: Original English text missing!");
+        voiceStatusEl.textContent = "Error: Cannot perform memory check."; // Use main status for errors
+        voiceStatusEl.className = 'text-danger';
+        if (feedbackArea) feedbackArea.textContent = 'Error checking recall.'; // Also show error in feedback
+        isMemoryCheckPhase = false;
+        memoryCheckPassed = false;
+        updateVoiceButtonUI();
+        return;
+    }
+
+    const plainOriginal = stripHtml(originalEnglishTextForMemoryCheck).toLowerCase();
+    const plainTranscript = transcript ? transcript.toLowerCase() : "";
+    const similarity = calculateSimilarity(plainOriginal, plainTranscript);
+    const similarityPercent = (similarity * 100).toFixed(0);
+    const feedbackDisplayDuration = 3000; // Keep feedback visible for 3 seconds
+
+    console.log(`[MemoryCheck] Similarity: ${similarity.toFixed(3)} (${similarityPercent}%)`);
+
+    if (similarity >= MEMORY_SIMILARITY_THRESHOLD) {
+        console.log("[MemoryCheck] PASSED.");
+
+        // --- Display percentage in the dedicated feedback area ---
+        if (feedbackArea) {
+            feedbackArea.textContent = `Recall Success: ${similarityPercent}%`;
+            feedbackArea.classList.add('text-success'); // Apply success color
+        }
+
+        // --- Set NEXT INSTRUCTION in the main voiceStatusEl ---
+        voiceStatusEl.textContent = `Choices below. Click button to speak choice.`;
+        voiceStatusEl.className = 'text-info'; // Use neutral color for instruction
+
+        // --- Perform immediate state updates and UI changes for pass ---
+        memoryCheckPassed = true;
+        isMemoryCheckPhase = false;
+        isChoiceSpeakingPhase = true;
+        displayAndHighlightMemoryCheck(originalEnglishTextForMemoryCheck, plainTranscript);
+        setVocabListVisibility(true);
+        setChoicesVisibility(true);
+        updateVoiceButtonUI(); // Update button for choice speaking phase
+
+        // --- Schedule clearing of the dedicated feedback area ---
+        if (feedbackArea) {
+            setTimeout(() => {
+                feedbackArea.textContent = ''; // Clear the text
+                feedbackArea.className = 'text-center font-semibold mt-2 min-h-[1.2em]'; // Reset class
+            }, feedbackDisplayDuration);
+        }
+
+    } else {
+        console.log("[MemoryCheck] FAILED.");
+
+        // --- Display percentage in the dedicated feedback area ---
+        if (feedbackArea) {
+            feedbackArea.textContent = `Recall Failed: ${similarityPercent}%`;
+            feedbackArea.classList.add('text-highlight'); // Apply retry/fail color
+        }
+
+        // --- Set NEXT INSTRUCTION in the main voiceStatusEl ---
+        voiceStatusEl.textContent = `Click button to try recall again.`;
+        voiceStatusEl.className = 'text-highlight'; // Match feedback color for retry instruction
+
+        // --- Perform immediate state updates and UI changes for fail ---
+        memoryCheckPassed = false;
+        isMemoryCheckPhase = true; // Stay in memory phase
+        isChoiceSpeakingPhase = false;
+        sceneTextEl.innerHTML = originalEnglishTextForMemoryCheck; // Show original text again
+        sceneTextEl.classList.remove('memory-recall-active');
+        setVocabListVisibility(true);
+        setChoicesVisibility(false); // Keep choices hidden
+        updateVoiceButtonUI(); // Keep button active for memory check retry
+
+        // --- Schedule clearing of the dedicated feedback area ---
+        if (feedbackArea) {
+            setTimeout(() => {
+                feedbackArea.textContent = ''; // Clear the text
+                feedbackArea.className = 'text-center font-semibold mt-2 min-h-[1.2em]'; // Reset class
+            }, feedbackDisplayDuration);
+        }
+    }
+}
+
+/** Processes speech result during choice selection phase */
+function processChoiceSpeechResult(transcript) {
+     console.log("[ChoiceSpeak] Processing transcript:", `"${transcript}"`);
+     if (!isChoiceSpeakingPhase) {
+         console.warn("[ChoiceSpeak] Received result outside of choice speaking phase. Ignoring.");
+         return;
+     }
+     if (!currentChoices || currentChoices.length === 0) {
+         console.warn("[ChoiceSpeak] No current choices available to match against.");
+         voiceStatusEl.textContent = "No choices available.";
+         voiceStatusEl.className = 'text-highlight';
+         return;
+     }
+
+    const bestMatch = findBestMatchChoice(transcript, currentChoices);
+
+    if (bestMatch) {
+        console.log(`[ChoiceSpeak] Best match found: "${stripHtml(bestMatch.choiceData.text)}"`);
+        voiceStatusEl.textContent = `Choosing: "${stripHtml(bestMatch.choiceData.text)}"...`;
+        voiceStatusEl.className = 'text-info';
+
+        // Transition out of choice speaking phase *before* handling choice
+        isChoiceSpeakingPhase = false;
+        updateVoiceButtonUI(); // Disable button during transition
+
+        setTimeout(() => {
+             console.log("[ChoiceSpeak] Executing handleChoice after delay.");
+            handleChoice(bestMatch.choiceData);
+        }, 800); // Short delay for user feedback
+
+    } else {
+        console.log("[ChoiceSpeak] No suitable choice match found.");
+        voiceStatusEl.textContent = `No clear match for "${transcript}". Click button to try speaking again.`;
+        voiceStatusEl.className = 'text-highlight';
+         // Remain in choice speaking phase for retry
+         isChoiceSpeakingPhase = true;
+         updateVoiceButtonUI(); // Keep button enabled for retry
+    }
+}
+
+/** Helper to find the best choice match for spoken text */
+function findBestMatchChoice(transcript, choices) {
+    if (!transcript || !choices || choices.length === 0) return null;
+    let bestMatch = null;
+    let highestSimilarity = -1;
+    const normalizedTranscript = transcript.toLowerCase().trim().replace(/[.,!?;:]/g, '');
+
+    choices.forEach((choice, index) => {
+        const plainChoiceText = stripHtml(choice.text).toLowerCase().trim().replace(/[.,!?;:]/g, '');
+        if (!plainChoiceText) return;
+
+         // Calculate similarity - potentially use a slightly lower threshold for choices
+         const similarity = calculateSimilarity(normalizedTranscript, plainChoiceText);
+         const similarityThreshold = 0.40; // May need adjustment
+
+        if (similarity >= similarityThreshold && similarity > highestSimilarity) {
+            highestSimilarity = similarity;
+            bestMatch = { choiceData: choice, index: index, similarity: similarity };
+        }
+         // --- Add Keyword Matching Boost ---
+         // Simple check if any important word from the choice is in the transcript
+         const choiceWords = plainChoiceText.split(/\s+/).filter(w => w.length > 3); // Ignore short words
+         const transcriptWords = new Set(normalizedTranscript.split(/\s+/));
+         let keywordMatch = false;
+         for (const cw of choiceWords) {
+             if (transcriptWords.has(cw)) {
+                 keywordMatch = true;
+                 break;
+             }
+         }
+         // If keywords match and similarity is decent (but maybe not highest), consider it a good candidate
+         if (keywordMatch && similarity > 0.30 && similarity > highestSimilarity * 0.8) { // Adjust boost logic as needed
+             // console.log(`[ChoiceSpeak] Keyword boost for: "${plainChoiceText}" (Sim: ${similarity.toFixed(2)})`);
+             highestSimilarity = similarity; // Update highest similarity if boosted
+             bestMatch = { choiceData: choice, index: index, similarity: similarity };
+         }
+         // --- End Keyword Matching Boost ---
+
+
+    });
+
+    if (bestMatch) {
+        console.log(`[ChoiceSpeak DEBUG] Best match: "${stripHtml(bestMatch.choiceData.text)}" (Index: ${bestMatch.index}, Sim: ${bestMatch.similarity.toFixed(2)})`);
+    } else {
+        console.log("[ChoiceSpeak DEBUG] No suitable choice match found.");
+    }
+    return bestMatch;
+}
+
+
+// --- Main Game Flow Functions ---
+
+/** Displays the specified scene and prepares interactions */
+function displayScene(sceneId) {
+    console.log(`[Game Flow] Displaying scene: ${sceneId}`);
+    const sceneData = gameData[sceneId];
+
+    // Reset state variables for the new scene
+    currentChoices = [];
+    isMemoryCheckPhase = false;
+    isChoiceSpeakingPhase = false;
+    memoryCheckPassed = false;
+    originalEnglishTextForMemoryCheck = "";
+    formattedUkrainianTextForMemoryCheck = "";
+
+    // Stop any ongoing interactions
+    if (synth?.speaking) synth.cancel();
+    if (recognition && isListening) {
+        try { recognition.abort(); } catch (e) {}
+        isListening = false;
+    }
+    sceneTextEl.classList.remove('speaking', 'memory-recall-active');
+
+    if (!sceneData) {
+        console.error(`[Game Flow] Invalid sceneId: ${sceneId}.`);
+        sceneTextEl.innerHTML = formatText("Error: Scene data not found. Please restart.");
+        choicesContainerEl.innerHTML = '';
+        setChoicesVisibility(false);
+        setVocabListVisibility(false);
+        outcomeDisplayEl.innerHTML = '<div class="game-over">ERROR</div>';
+        addRestartButton();
+        updateVoiceButtonUI();
+        return;
+    }
+
+    // Process Scene Text (EN and UA)
+    const englishText = (typeof sceneData.text === 'object' && sceneData.text.en) ? sceneData.text.en : sceneData.text;
+    const ukrainianText = (typeof sceneData.text === 'object' && sceneData.text.ua) ? sceneData.text.ua : null;
+    let sceneDisplayText = englishText || `Scene "${sceneId}" has no English text.`;
+    let outcomeMessage = '';
+    const gameOverMatch = sceneDisplayText.match(/<span class='game-over'>(.*?)<\/span>/i);
+    const gameSuccessMatch = sceneDisplayText.match(/<span class='game-success'>(.*?)<\/span>/i);
+    const isEndScene = !!(gameOverMatch || gameSuccessMatch);
+
+    if (gameOverMatch) {
+        outcomeMessage = `<div class="game-over">${gameOverMatch[1]}</div>`;
+        sceneDisplayText = sceneDisplayText.replace(gameOverMatch[0], '').trim();
+    } else if (gameSuccessMatch) {
+        outcomeMessage = `<div class="game-success">${gameSuccessMatch[1]}</div>`;
+        sceneDisplayText = sceneDisplayText.replace(gameSuccessMatch[0], '').trim();
+    }
+
+    originalEnglishTextForMemoryCheck = formatText(sceneDisplayText);
+    if (ukrainianText) {
+        formattedUkrainianTextForMemoryCheck = formatText(ukrainianText);
+    }
+    const plainEnglishText = stripHtml(originalEnglishTextForMemoryCheck);
+
+    // Initial UI Update
+    sceneTextEl.innerHTML = originalEnglishTextForMemoryCheck;
+    outcomeDisplayEl.innerHTML = outcomeMessage;
+    voiceStatusEl.textContent = '';
+    voiceStatusEl.className = 'text-info';
+    choicesContainerEl.innerHTML = ''; // Clear before preparing
+
+    updateVocabList(plainEnglishText);
+    setVocabListVisibility(true);
+
+    // *** Prepare choice elements (container starts hidden) ***
+    // Use prepareAndDisplayChoices which now creates the elements
+    if (sceneData.choices?.length > 0) {
+        prepareAndDisplayChoices(sceneData);
+    } else if (isEndScene) {
+        addRestartButton(); // Ensures restart button is added if no choices defined
+    }
+    // Ensure choices container starts hidden for the new scene
+    setChoicesVisibility(false);
+
+    updateVoiceButtonUI(); // Set initial button state
+
+    // --- Speak English Text & Setup Next Interaction Phase ---
+    console.log("[Game Flow] Calling speakText for the scene.");
+    speakText(plainEnglishText, 'en-GB', () => {
+        console.log("[Game Flow] speakText callback executed.");
+        const needsMemoryCheck = !!formattedUkrainianTextForMemoryCheck && !isEndScene;
+        console.log(`[Game Flow] speakText callback: needsMemoryCheck = ${needsMemoryCheck}, isEndScene = ${isEndScene}`);
+
+        if (needsMemoryCheck) {
+            console.log("[Game Flow] Setting up Memory Check phase.");
+            isMemoryCheckPhase = true;
+            isChoiceSpeakingPhase = false;
+            memoryCheckPassed = false;
+            voiceStatusEl.textContent = "Listen carefully to the text above.";
+        } else {
+            console.log("[Game Flow] Skipping Memory Check or is End Scene.");
+            isMemoryCheckPhase = false;
+            isChoiceSpeakingPhase = !isEndScene;
+            memoryCheckPassed = true;
+
+            if (!isEndScene) {
+                console.log("[Game Flow] Setting up Choice Speaking phase (no memory check).");
+                voiceStatusEl.textContent = "Speak your desired choice.";
+                setChoicesVisibility(false); // Keep choices hidden if skipping memory check too
+            } else {
+                console.log("[Game Flow] End scene reached. No further voice action.");
+                voiceStatusEl.textContent = "Game finished.";
+                // Make sure restart button is visible if added
+                 if (document.getElementById('restart-button') || document.getElementById('dynamic-restart-button')) {
+                     setChoicesVisibility(true);
+                 }
+            }
+        }
+        updateVoiceButtonUI(); // Update button state AFTER determining phase
+    });
+}
+
+/** Populates currentChoices array but doesn't create buttons */
+function prepareAndDisplayChoices(sceneData) {
+    choicesContainerEl.innerHTML = ''; // Clear previous
+    currentChoices = []; // Reset choices array
+
+    if (sceneData.choices?.length > 0) {
+        currentChoices = sceneData.choices.map(choice => ({
+            text: choice.text,
+            nextScene: choice.nextScene
+        }));
+        console.log(`[Game Flow] Prepared ${currentChoices.length} choices for matching.`);
+
+        // Create visual elements (these will be in the container, initially hidden)
+        currentChoices.forEach(choice => {
+            const element = document.createElement('div'); // Use div instead of button for non-clickable choices
+            // Style like a button, but use 'default' cursor and maybe slightly faded
+            element.className = `block w-full p-3 mb-3 border-none bg-accent text-white text-left rounded text-base transition-colors duration-200 ease-in-out focus:outline-none opacity-90 cursor-default`; // Adjusted style
+            element.innerHTML = formatText(choice.text); // Display formatted text
+
+            // Special handling ONLY if a choice IS "Restart Game"
+            if (choice.text === "Restart Game") {
+                 element.remove(); // Remove the div we just made for restart
+                 const restartButton = document.createElement('button'); // Create a real button for restart
+                restartButton.id = "restart-button"; // Use specific ID if needed
+                restartButton.className = `block w-fit mx-auto p-3 mt-4 border-none bg-danger text-white cursor-pointer rounded text-base transition-colors duration-200 ease-in-out hover:bg-danger-dark focus:outline-none focus:ring-2 focus:ring-danger-dark focus:ring-opacity-50`; // Restart button styles
+                restartButton.textContent = choice.text;
+                restartButton.disabled = false; // Ensure restart is clickable
+                restartButton.onclick = () => handleChoice(choice); // Add click handler ONLY for restart
+                 choicesContainerEl.appendChild(restartButton); // Add the button
+            } else {
+                 choicesContainerEl.appendChild(element); // Add the non-clickable div
+            }
+        });
+
+    } else {
+        console.warn("[Game Flow] prepareAndDisplayChoices called, but sceneData has no choices.");
+    }
+     // Ensure container itself starts hidden (visibility controlled elsewhere)
+     setChoicesVisibility(false);
+}
+
+
+/** Adds a visible Restart Game button */
+function addRestartButton() {
+     // Check if a restart button from gameData choices already exists
+     let existingRestartButton = null;
+     choicesContainerEl.querySelectorAll('button').forEach(btn => {
+         if (btn.id === 'restart-button') {
+             existingRestartButton = btn;
+         }
+     });
+
+     if (existingRestartButton) {
+         console.log("[Game Flow] Restart button already exists from choices.");
+         setChoicesVisibility(true); // Make sure container is visible if restart is the choice
+         existingRestartButton.disabled = false; // Ensure it's clickable
+         return;
+     }
+
+     // If no restart button from choices, create one dynamically
+    if (document.getElementById('dynamic-restart-button')) return; // Avoid adding duplicates
+    if (synth?.speaking) synth.cancel();
+
+    const restartChoice = { text: "Restart Game", nextScene: 'start' };
+    const button = document.createElement('button');
+    // Use specific ID for dynamically added button
+    button.id = "dynamic-restart-button";
+    // Apply restart button styling
+    button.className = `block w-fit mx-auto p-3 mt-4 border-none bg-danger text-white cursor-pointer rounded text-base transition-colors duration-200 ease-in-out hover:bg-danger-dark focus:outline-none focus:ring-2 focus:ring-danger-dark focus:ring-opacity-50`;
+    button.textContent = restartChoice.text;
+    button.onclick = () => handleChoice(restartChoice);
+    button.disabled = false; // Make clickable immediately
+
+    // Append to outcome display or choices container? Let's use choices for consistency
+    choicesContainerEl.appendChild(button);
+    setChoicesVisibility(true); // Make container visible for the restart button
+    console.log("[Game Flow] Added dynamic restart button.");
+}
+
+
+/** Handles moving to the next scene */
+function handleChoice(choiceData) {
+     console.log(`[Game Flow] Handling choice: "${choiceData.text}" -> ${choiceData.nextScene}`);
+
+     // Stop interactions
+     if (synth?.speaking) synth.cancel();
+     if (recognition && isListening) {
+         try { recognition.abort(); } catch(e) {}
+         isListening = false;
+     }
+     sceneTextEl.classList.remove('speaking', 'memory-recall-active');
+
+     if (!choiceData?.nextScene) {
+         console.error("[Game Flow] Invalid choice data (missing nextScene):", choiceData);
+         sceneTextEl.innerHTML = formatText("Error: Invalid choice selected. Please restart.");
+         choicesContainerEl.innerHTML = '';
+         setChoicesVisibility(false);
+         setVocabListVisibility(false);
+         outcomeDisplayEl.innerHTML = '<div class="game-over">ERROR</div>';
+         addRestartButton();
+         updateVoiceButtonUI(); // Disable voice button
+         return;
+     }
+
+     // Proceed to the next scene
+     console.log(`[Game Flow] Moving to scene: ${choiceData.nextScene}`);
+     currentSceneId = choiceData.nextScene;
+     // Reset phases before displaying next scene
+     isMemoryCheckPhase = false;
+     isChoiceSpeakingPhase = false;
+     displayScene(currentSceneId);
+}
+// --- End of Chunk 2 ---
+// --- Start of Chunk 3 ---
+// (Continuing script from Chunk 2)
+
+// --- Event Listener Setup ---
+
+/** Handles clicks on the main voice action button */
+function handleVoiceButtonClick() {
+    console.log(`[Voice Button] Clicked. MemoryPhase: ${isMemoryCheckPhase}, ChoicePhase: ${isChoiceSpeakingPhase}, Listening: ${isListening}`);
+
+    if (!recognition) {
+        console.error("[Voice Button] Recognition not initialized.");
+        voiceStatusEl.textContent = "Voice input system error.";
+        voiceStatusEl.className = 'text-danger';
+        return;
+    }
+    if (!micPermissionGranted) {
+        console.warn("[Voice Button] Mic permission not granted.");
+        voiceStatusEl.textContent = "Microphone access needed.";
+        voiceStatusEl.className = 'text-danger';
+        // requestMicPermission(); // Optionally re-request?
+        return;
+    }
+
+    if (isListening) {
+        console.log("[Voice Button] Currently listening, stopping recognition.");
+        try {
+            recognition.stop();
+        } catch (e) {
+            console.warn("[Voice Button] Error stopping recognition:", e);
+        }
+        // onend will handle UI update
+    } else {
+        // If not listening, start based on phase
+        if (isMemoryCheckPhase) {
+            console.log("[Voice Button] Starting memory recall recognition.");
+            // Hide English text, show Ukrainian/Placeholder
+            if (formattedUkrainianTextForMemoryCheck) {
+                sceneTextEl.innerHTML = formattedUkrainianTextForMemoryCheck;
+            } else {
+                sceneTextEl.innerHTML = "<p class='text-highlight p-2 text-center'>Translation not available.<br/>Recall the English text.</p>";
+            }
+            sceneTextEl.classList.add('memory-recall-active');
+            setVocabListVisibility(false); // Hide vocab during recall attempt
+            setChoicesVisibility(false); // Ensure choices definitely hidden
+
+            try {
+                recognition.lang = 'en-US'; // Ensure English for recall
+                recognition.start();
+            } catch (e) {
+                console.error("[Voice Button] Error starting memory recognition:", e);
+                // Restore UI if start fails
+                sceneTextEl.innerHTML = originalEnglishTextForMemoryCheck;
+                sceneTextEl.classList.remove('memory-recall-active');
+                setVocabListVisibility(true);
+                voiceStatusEl.textContent = "Error starting voice input.";
+                voiceStatusEl.className = 'text-danger';
+                isListening = false;
+                updateVoiceButtonUI();
+            }
+        } else if (isChoiceSpeakingPhase) {
+            console.log("[Voice Button] Starting choice speaking recognition.");
+
+            // *** HIDE CHOICES BEFORE LISTENING FOR CHOICE ***
+            setChoicesVisibility(false);
+            voiceStatusEl.textContent = "Listening for your choice..."; // Update status prompt
+
+            try {
+                recognition.lang = 'en-US'; // Ensure English for choice
+                recognition.start();
+            } catch (e) {
+                console.error("[Voice Button] Error starting choice recognition:", e);
+                voiceStatusEl.textContent = "Error starting voice input.";
+                voiceStatusEl.className = 'text-danger';
+                // Show choices again if listening fails? Or keep hidden? Let's keep hidden.
+                // setChoicesVisibility(true);
+                isListening = false;
+                updateVoiceButtonUI();
+            }
+        } else {
+            console.warn("[Voice Button] Clicked in unexpected state (not memory or choice phase).");
+            // Maybe it's an end scene? Button should be disabled.
+        }
+    }
+}
+
+// --- Replace existing addRestartButton function ---
+function addRestartButton() {
+    // Check if a restart button (dynamic or from choices) already exists
+    if (document.getElementById('restart-button') || document.getElementById('dynamic-restart-button')) {
+         console.log("[Game Flow] Restart button already exists.");
+         // Ensure container is visible if restart button is present
+         setChoicesVisibility(true);
+         // Ensure the button itself is enabled (might have been disabled)
+         const btn = document.getElementById('restart-button') || document.getElementById('dynamic-restart-button');
+         if(btn) btn.disabled = false;
+         return;
+    }
+
+    // If no restart button exists, create one dynamically
+    if (synth?.speaking) synth.cancel();
+
+    const restartChoice = { text: "Restart Game", nextScene: 'start' };
+    const button = document.createElement('button');
+    button.id = "dynamic-restart-button"; // Use specific ID
+    button.className = `block w-fit mx-auto p-3 mt-4 border-none bg-danger text-white cursor-pointer rounded text-base transition-colors duration-200 ease-in-out hover:bg-danger-dark focus:outline-none focus:ring-2 focus:ring-danger-dark focus:ring-opacity-50`;
+    button.textContent = restartChoice.text;
+    button.onclick = () => handleChoice(restartChoice);
+    button.disabled = false; // Make clickable immediately
+
+    choicesContainerEl.appendChild(button);
+    // *** MAKE SURE CONTAINER IS VISIBLE FOR RESTART ***
+    setChoicesVisibility(true);
+    console.log("[Game Flow] Added dynamic restart button.");
+}
+
+
+
+/** Listener for the Start Challenge / Enable Audio button */
+startChallengeBtn.addEventListener('click', () => {
+    console.log("[DEBUG] Start Challenge button clicked.");
+
+    // *** Disable button immediately to prevent rapid clicks / re-entry ***
+    startChallengeBtn.disabled = true;
+    console.log("[DEBUG] Start Challenge Button DISABLED.");
+
+    // Check ttsUnlocked status AFTER disabling
+    console.log(`[DEBUG] Checking ttsUnlocked status: ${ttsUnlocked}`);
+    if (ttsUnlocked) {
+        console.log("[DEBUG] ttsUnlocked is TRUE. Audio already enabled. Ensuring correct final state.");
+        // Keep button disabled as audio is already enabled
+        startChallengeBtn.textContent = 'Listen carefully ✅'; // Ensure text is correct
+        startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark', 'bg-danger'); // Clean up styles
+        startChallengeBtn.classList.add('audio-enabled');
+        return; // Exit, already handled
+    }
+
+    console.log("[DEBUG] ttsUnlocked is FALSE. Proceeding...");
+
+    console.log("[DEBUG] Checking synth support...");
+    if (!synth) {
+        console.error("[DEBUG] Speech synthesis NOT SUPPORTED.");
+        alert("Speech synthesis not supported by this browser.");
+        startChallengeBtn.textContent = 'Audio Not Supported';
+        // Button remains disabled
+        return;
+    }
+
+    console.log("[DEBUG] Synth support confirmed. Attempting to unlock TTS...");
+    startChallengeBtn.textContent = 'Enabling Audio...'; // Provide feedback
+
+    const utterance = new SpeechSynthesisUtterance("Listen carefully.");
+    utterance.volume = 0.01; // Keep it quiet/fast
+    utterance.rate = 1.0;
+
+    let eventFired = false; // Flag to track if onend/onerror occurs
+    let fallbackTimer = null; // Timer handle
+
+    utterance.onstart = () => {
+        console.log("[DEBUG] TTS utterance started successfully.");
+        // Optional: Clear the fallback timer if onstart fires,
+        // as it means the synth engine is responding.
+        // if (fallbackTimer) clearTimeout(fallbackTimer);
+    };
+
+    utterance.onend = () => {
+        console.log("[DEBUG] TTS utterance finished (onend). Setting ttsUnlocked=true.");
+        if (fallbackTimer) clearTimeout(fallbackTimer); // Clear timeout if event fires
+        eventFired = true;
+        if (!ttsUnlocked) { // Avoid running startGame twice if timeout also fired
+            ttsUnlocked = true;
+            startChallengeBtn.textContent = 'Listen carefully ✅';
+            startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark', 'bg-danger');
+            startChallengeBtn.classList.add('audio-enabled');
+            // Button remains disabled (as intended after success)
+
+            console.log("[DEBUG] TTS unlocked via onend. Calling startGame()...");
+            setTimeout(startGame, 50); // Short delay after state change
+        }
+    };
+
+    utterance.onerror = (e) => {
+        console.error("[DEBUG] TTS utterance ONSYNTH ERROR:", e.error, e);
+         if (fallbackTimer) clearTimeout(fallbackTimer); // Clear timeout if event fires
+        eventFired = true;
+        if (!ttsUnlocked) { // Avoid running startGame twice
+            alert(`Failed to enable audio: ${e.error}. Sound may not work. Trying to continue anyway...`);
+            ttsUnlocked = true; // Attempt to proceed despite error
+            startChallengeBtn.textContent = 'Audio Failed - Continuing';
+            startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark');
+            startChallengeBtn.classList.add('audio-enabled', 'bg-danger');
+            // Button remains disabled
+
+            console.log("[DEBUG] TTS unlock failed via onerror. Attempting to call startGame() anyway...");
+            setTimeout(startGame, 50);
+        }
+    };
+
+    // --- Fallback Timer ---
+    // If neither onend nor onerror has fired after a reasonable time,
+    // assume the TTS unlock is stuck or failed silently. Force proceed.
+    fallbackTimer = setTimeout(() => {
+        console.log("[DEBUG] Fallback timer executing check...");
+        if (!eventFired && !ttsUnlocked) { // Check if events fired or state changed
+            console.warn("[DEBUG] TTS unlock fallback: Neither onend nor onerror fired after 2 seconds. Assuming failure but proceeding.");
+            alert("Audio enablement timed out. Sound may not work. Trying to continue anyway...");
+            ttsUnlocked = true; // Force unlock state
+            startChallengeBtn.textContent = 'Audio Timeout - Continuing';
+            startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark');
+            startChallengeBtn.classList.add('audio-enabled', 'bg-danger');
+             // Button remains disabled
+
+            console.log("[DEBUG] TTS unlock timed out. Attempting to call startGame()...");
+            // No need for another setTimeout here, as we are already in one
+            startGame();
+        } else {
+             console.log("[DEBUG] Fallback timer: Event already fired or TTS unlocked. No action needed.");
+        }
+    }, 2000); // 2 second timeout
+
+    // --- Attempt to Speak ---
+    try {
+        console.log("[DEBUG] Calling synth.speak(utterance)...");
+        // Clear any previous synth queue just in case
+        if (synth.speaking || synth.pending) {
+            console.warn("[DEBUG] Cancelling existing speech before new unlock attempt.");
+            synth.cancel();
+        }
+        synth.speak(utterance);
+        console.log("[DEBUG] synth.speak() called without immediate error.");
+
+    } catch (e) {
+        console.error("[DEBUG] Error thrown immediately by synth.speak():", e);
+        if (fallbackTimer) clearTimeout(fallbackTimer); // Clear timeout on immediate error
+        eventFired = true; // Error is an event
+        if (!ttsUnlocked) { // Avoid running startGame twice
+            alert("Could not initiate audio enablement due to an immediate error. Trying to continue anyway...");
+            ttsUnlocked = true; // Attempt to proceed
+            startChallengeBtn.textContent = 'Audio Error - Continuing';
+            startChallengeBtn.classList.remove('bg-accent', 'hover:bg-accent-dark');
+            startChallengeBtn.classList.add('audio-enabled', 'bg-danger');
+            // Button remains disabled
+
+            console.log("[DEBUG] synth.speak() threw error. Attempting to call startGame() anyway...");
+            setTimeout(startGame, 50);
+        }
+    }
+});
+
+
+// --- Game Initialization ---
+
+/** Requests microphone permission */
+async function requestMicPermission() {
+     if (!SpeechRecognitionAPI) {
+         console.log("[Init] Speech Rec not supported, skipping mic request.");
+          micPermissionGranted = false;
+         return false;
+     }
+     if (micPermissionGranted === true) {
+         console.log("[Init] Mic permission already granted.");
+         return true;
+     }
+     if (micPermissionGranted === false) {
+         console.log("[Init] Mic permission previously denied.");
+         // Don't re-prompt if explicitly denied previously, user must change in settings
+         return false;
+     }
+
+     // If status is null (unknown)
+     try {
+         console.log("[Init] Requesting microphone permission...");
+         voiceStatusEl.textContent = "Requesting microphone access...";
+         voiceStatusEl.className = 'text-info';
+         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+         console.log("[Init] Microphone permission GRANTED.");
+         micPermissionGranted = true;
+         stream.getTracks().forEach(track => track.stop()); // Release mic indicator
+         voiceStatusEl.textContent = ""; // Clear prompt
+         return true;
+     } catch (err) {
+         console.error("[Init] Microphone permission DENIED or error:", err.name, err.message);
+         micPermissionGranted = false;
+         voiceStatusEl.textContent = "Microphone access denied. Voice input disabled.";
+         voiceStatusEl.className = 'text-danger';
+         return false;
+     }
+}
+
+/** Initializes the game state and starts the first scene */
+async function startGame() {
+     console.log("[Init] startGame() called. TTS Unlocked:", ttsUnlocked);
+
+     // --- Wait for TTS Unlock ---
+     if (!ttsUnlocked) {
+         console.log("[Init] TTS not unlocked. Displaying 'Start Challenge' prompt.");
+         sceneTextEl.innerHTML = `<div class='p-4 text-center text-lg text-highlight'>Click the 'Start the challenge' button above to begin.</div>`;
+         choicesContainerEl.innerHTML = '';
+         setChoicesVisibility(false);
+         setVocabListVisibility(false);
+         outcomeDisplayEl.innerHTML = '';
+         voiceButton.disabled = true; // Voice button disabled initially
+         updateVoiceButtonUI();
+         startChallengeBtn.disabled = false; // Ensure start button is clickable
+         startChallengeBtn.textContent = 'Start the challenge 🚀';
+         startChallengeBtn.classList.remove('audio-enabled');
+         startChallengeBtn.classList.add('bg-accent', 'hover:bg-accent-dark');
+         return; // Wait for button click
+     }
+
+    // --- TTS Unlocked - Proceed ---
+    console.log("[Init] TTS unlocked. Initializing game elements.");
+    currentSceneId = 'start';
+    isMemoryCheckPhase = false;
+    isChoiceSpeakingPhase = false;
+    memoryCheckPassed = false;
+
+     // Ensure voices are loaded before selecting
+     if (synth.getVoices().length === 0 && voicesLoaded === false) {
+         console.log("[Init] Waiting for voices to load...");
+         await new Promise(resolve => {
+             if (voicesLoaded) resolve(); // Already loaded by the time we check
+             else synth.addEventListener('voiceschanged', resolve, { once: true });
+         });
+         console.log("[Init] Voices loaded.");
+     }
+     selectedVoice = getBestVoice();
+     console.log("[Init] Selected TTS voice:", selectedVoice ? selectedVoice.name : "default");
+
+     // Initialize Speech Recognition (checks support internally)
+     initializeSpeechRecognition();
+
+     // Request Microphone Permission (only if needed and possible)
+     await requestMicPermission();
+
+     // Attach the single click listener to the voice button
+     voiceButton.removeEventListener('click', handleVoiceButtonClick); // Remove old first
+     voiceButton.addEventListener('click', handleVoiceButtonClick);
+     console.log("[Init] Voice button click listener attached.");
+
+
+     // Final update to button UI after permissions etc.
+     updateVoiceButtonUI();
+
+     // Display the First Scene
+     console.log(`[Init] Initialization complete. Displaying first scene: '${currentSceneId}'.`);
+     displayScene(currentSceneId);
+}
+
+// --- Initial Page Load ---
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("[Init] DOMContentLoaded. Calling startGame() for initial setup.");
+    startGame(); // Shows prompt or starts game if audio already enabled (e.g., refresh)
+});
+
+// --- End of Chunk 3 ---
+</script>
+</body>
+</html>

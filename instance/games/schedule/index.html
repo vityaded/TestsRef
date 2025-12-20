@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мій Розумний Розклад</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .card {
+            transition: all 0.2s ease-in-out;
+            cursor: grab;
+        }
+        .card:active {
+            cursor: grabbing;
+            transform: scale(1.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .time-slot {
+            min-height: 120px;
+        }
+        .dragging {
+            opacity: 0.5;
+        }
+        .drag-over {
+            border: 2px dashed #3498db;
+            background-color: #f0f8ff;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="flex flex-col md:flex-row justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-700">Розклад 2025</h1>
+            <div class="flex items-center space-x-2 mt-4 md:mt-0">
+                <input type="file" id="file-input" class="hidden" accept=".xlsx, .xls, .csv">
+                <button id="import-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                    Імпорт XLSX
+                </button>
+                <button id="add-student-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                    + Додати учня
+                </button>
+            </div>
+        </header>
+
+        <div id="schedule-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Schedule will be rendered here by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Modal for adding/editing students -->
+    <div id="student-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md">
+            <h2 id="modal-title" class="text-2xl font-bold mb-4">Додати нового учня</h2>
+            <form id="student-form">
+                <input type="hidden" id="student-id">
+                <div class="mb-4">
+                    <label for="student-name" class="block text-gray-700 text-sm font-bold mb-2">Ім'я та Прізвище:</label>
+                    <input type="text" id="student-name" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                </div>
+                <div class="mb-4">
+                    <label for="student-level" class="block text-gray-700 text-sm font-bold mb-2">Рівень (1-6):</label>
+                    <input type="number" id="student-level" min="1" max="6" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                </div>
+                <div class="mb-4">
+                    <label for="student-day" class="block text-gray-700 text-sm font-bold mb-2">День:</label>
+                    <select id="student-day" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        <option value="Понеділок">Понеділок</option>
+                        <option value="Середа">Середа</option>
+                        <option value="Четвер">Четвер</option>
+                        <option value="П'ятниця">П'ятниця</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label for="student-time" class="block text-gray-700 text-sm font-bold mb-2">Час:</label>
+                    <select id="student-time" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                         <!-- Time options will be populated dynamically -->
+                    </select>
+                </div>
+                 <div class="mb-4">
+                    <label for="student-group" class="block text-gray-700 text-sm font-bold mb-2">Група:</label>
+                    <input type="text" id="student-group" placeholder="Напр. Група A" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
+                <div class="flex items-center justify-between">
+                    <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:shadow-outline">Зберегти</button>
+                    <button type="button" id="cancel-btn" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:shadow-outline">Скасувати</button>
+                     <button type="button" id="delete-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:shadow-outline hidden">Видалити</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const importBtn = document.getElementById('import-btn');
+            const fileInput = document.getElementById('file-input');
+            const scheduleGrid = document.getElementById('schedule-grid');
+
+            const addStudentBtn = document.getElementById('add-student-btn');
+            const studentModal = document.getElementById('student-modal');
+            const studentForm = document.getElementById('student-form');
+            const cancelBtn = document.getElementById('cancel-btn');
+            const deleteBtn = document.getElementById('delete-btn');
+            const modalTitle = document.getElementById('modal-title');
+
+            const studentTimeSelect = document.getElementById('student-time');
+
+            const daysOfWeek = ['Понеділок', 'Середа', 'Четвер', 'П'ятниця'];
+            const timeSlotsData = ['13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
+
+            // Populate time options in modal
+            timeSlotsData.forEach(time => {
+                const option = document.createElement('option');
+                option.value = time;
+                option.textContent = time;
+                studentTimeSelect.appendChild(option);
+            });
+
+            // Initial data from your schedule
+            let scheduleData = {
+                'Понеділок': {
+                    '13:00': [{ id: 1, name: 'Діана', level: 1, group: 'A' }, { id: 2, name: 'Саша', level: 1, group: 'A' }, { id: 3, name: 'Даша', level: 1, group: 'A' }, { id: 4, name: 'Кароліна', level: 1, group: 'A' }, { id: 5, name: 'Аня', level: 1, group: 'A' }, { id: 6, name: 'Савелій', level: 1, group: 'A' }, { id: 7, name: 'Ярослав', level: 1, group: 'A' }, { id: 8, name: 'Поля Сусідка', level: 1, group: 'A' }],
+                    '14:00': [{ id: 9, name: 'Матвій', level: 3, group: 'C' }, { id: 10, name: 'Артем', level: 3, group: 'C' }, { id: 11, name: 'Маша', level: 3, group: 'C' }, { id: 12, name: 'Егор Карплюк', level: 3, group: 'C' }, { id: 13, name: 'Даша', level: 3, group: 'C' }, { id: 14, name: 'Влад', level: 3, group: 'C' }, { id: 15, name: 'Макс', level: 3, group: 'C' }, { id: 16, name: 'Вероніка', level: 3, group: 'C' }],
+                    '15:00': [{ id: 17, name: 'Артем', level: 4, group: 'E' }, { id: 18, name: 'Кіра', level: 4, group: 'E' }, { id: 19, name: 'Настя', level: 4, group: 'E' }, { id: 20, name: 'Даня', level: 4, group: 'E' }, { id: 21, name: 'Веронік', level: 4, group: 'E' }, { id: 22, name: 'Даша', level: 4, group: 'E' }, { id: 23, name: 'Камілла', level: 4, group: 'E' }, { id: 24, name: 'Рома', level: 4, group: 'E' }, { id: 25, name: 'Миланна Киндюк', level: 4, group: 'E' }],
+                    '16:00': [{ id: 26, name: 'Єва', level: 4, group: 'G' }, { id: 27, name: 'Ярік', level: 4, group: 'G' }, { id: 28, name: 'Іван', level: 4, group: 'G' }, { id: 29, name: 'Костя', level: 4, group: 'G' }, { id: 30, name: 'Єлла', level: 4, group: 'G' }, { id: 31, name: 'Паша Іванаєвський', level: 4, group: 'G' }, { id: 32, name: 'Аня', level: 4, group: 'G' }],
+                    '17:00': [{ id: 33, name: 'Макар', level: 4, group: 'J' }, { id: 34, name: 'Аліна', level: 4, group: 'J' }, { id: 35, name: 'Тимофей', level: 4, group: 'J' }, { id: 36, name: 'Семен', level: 4, group: 'J' }, { id: 37, name: 'Злата', level: 4, group: 'J' }, { id: 38, name: 'Ігор', level: 4, group: 'J' }, { id: 39, name: 'Паша', level: 4, group: 'J' }, { id: 40, name: 'Матвій(великий)', level: 4, group: 'J' }, { id: 41, name: 'Гліб', level: 4, group: 'J' }, { id: 42, name: 'Єгор', level: 4, group: 'J' }],
+                    '18:00': [{ id: 43, name: 'Макс', level: 5, group: 'I' }, { id: 44, name: 'Кароліна', level: 5, group: 'I' }, { id: 45, name: 'Ангелина', level: 5, group: 'I' }, { id: 46, name: 'Артур', level: 5, group: 'I' }, { id: 47, name: 'Бугрій', level: 5, group: 'I' }, { id: 101, name: 'Ева', level: 5, group: 'I' }],
+                    '19:00': [{ id: 48, name: 'Поля', level: 6, group: 'M' }, { id: 49, name: 'Лера', level: 6, group: 'M' }, { id: 50, name: 'Кіра', level: 6, group: 'M' }, { id: 51, name: 'Геля', level: 6, group: 'M' }, { id: 52, name: 'Ніка', level: 6, group: 'M' }, { id: 53, name: 'Даня', level: 6, group: 'M' }, { id: 54, name: 'Ярик', level: 6, group: 'M' }, { id: 55, name: 'Настя', level: 6, group: 'M' }, { id: 56, name: 'Аня', level: 6, group: 'M' }]
+                },
+                'Середа': {
+                    '13:00': [{ id: 57, name: 'Арина', level: 1, group: 'B' }, { id: 58, name: 'Святослав', level: 1, group: 'B' }, { id: 59, name: 'Роман', level: 1, group: 'B' }, { id: 60, name: 'Денис', level: 1, group: 'B' }, { id: 61, name: 'Камінський', level: 1, group: 'B' }, { id: 62, name: 'Сидоренко Максим', level: 1, group: 'B' }],
+                    '14:00': [{ id: 63, name: 'Прохор', level: 3, group: 'D' }, { id: 64, name: 'Варя', level: 3, group: 'D' }, { id: 65, name: 'Вика', level: 3, group: 'D' }, { id: 66, name: 'Яна', level: 3, group: 'D' }, { id: 67, name: 'Маша Нова', level: 3, group: 'D' }, { id: 68, name: 'Маша Попова', level: 3, group: 'D' }, { id: 69, name: 'Макс Бондар', level: 3, group: 'D' }, { id: 70, name: 'Мая', level: 3, group: 'D' }],
+                    '15:00': [{ id: 71, name: 'Дарина', level: 3, group: 'F' }, { id: 72, name: 'Микола', level: 3, group: 'F' }, { id: 73, name: 'Вадим Лобач', level: 3, group: 'F' }, { id: 74, name: 'Ярік Новий', level: 3, group: 'F' }, { id: 75, name: 'Глеб', level: 3, group: 'F' }, { id: 76, name: 'Матвей', level: 3, group: 'F' }, { id: 77, name: 'Ульяна', level: 3, group: 'F' }, { id: 78, name: 'Софія', level: 3, group: 'F' }, { id: 79, name: 'Іванка', level: 3, group: 'F' }],
+                    '16:00': [{ id: 80, name: 'Даша', level: 5, group: 'H' }, { id: 81, name: 'Аня Бага', level: 5, group: 'H' }, { id: 82, name: 'Даня', level: 5, group: 'H' }, { id: 83, name: 'Лиза', level: 5, group: 'H' }, { id: 84, name: 'Андрей', level: 5, group: 'H' }, { id: 85, name: 'Аріна', level: 5, group: 'H' }, { id: 86, name: 'Кароліна', level: 5, group: 'H' }],
+                    '17:00': [{ id: 33, name: 'Макар', level: 4, group: 'J' }, { id: 34, name: 'Аліна', level: 4, group: 'J' }, { id: 35, name: 'Тимофей', level: 4, group: 'J' }, { id: 36, name: 'Семен', level: 4, group: 'J' }, { id: 37, name: 'Злата', level: 4, group: 'J' }, { id: 38, name: 'Ігор', level: 4, group: 'J' }, { id: 39, name: 'Паша', level: 4, group: 'J' }, { id: 40, name: 'Матвій(великий)', level: 4, group: 'J' }, { id: 41, name: 'Гліб', level: 4, group: 'J' }, { id: 42, name: 'Єгор', level: 4, group: 'J' }],
+                    '18:00': [{ id: 87, name: 'Бойченко', level: 5, group: 'L' }, { id: 88, name: 'Маша', level: 5, group: 'L' }, { id: 89, name: 'Бага марк', level: 5, group: 'L' }, { id: 90, name: 'Марк', level: 5, group: 'L' }, { id: 91, name: 'Ксюша', level: 5, group: 'L' }, { id: 92, name: 'Влад', level: 5, group: 'L' }, { id: 93, name: 'Наташа', level: 5, group: 'L' }, { id: 94, name: 'Соня', level: 5, group: 'L' }, {id: 100, name: 'Діана', level: 5, group: 'L'}],
+                    '19:00': [{ id: 56, name: 'Аня', level: 6, group: 'M' }]
+                },
+                'Четвер': {
+                    '13:00': [{ id: 1, name: 'Діана', level: 1, group: 'A' }, { id: 2, name: 'Саша', level: 1, group: 'A' }, { id: 4, name: 'Кароліна', level: 1, group: 'A' }, { id: 5, name: 'Аня', level: 1, group: 'A' }, { id: 6, name: 'Савелій', level: 1, group: 'A' }, { id: 8, name: 'Поля Сусідка', level: 1, group: 'A' }],
+                    '14:00': [{ id: 9, name: 'Матвій', level: 3, group: 'C' }, { id: 10, name: 'Артем', level: 3, group: 'C' }, { id: 11, name: 'Маша', level: 3, group: 'C' }, { id: 12, name: 'Егор Карплюк', level: 3, group: 'C' }, { id: 13, name: 'Даша', level: 3, group: 'C' }, { id: 14, name: 'Влад', level: 3, group: 'C' }, { id: 15, name: 'Макс', level: 3, group: 'C' }, { id: 16, name: 'Вероніка', level: 3, group: 'C' }],
+                    '15:00': [{ id: 18, name: 'Кіра', level: 4, group: 'E' }, { id: 19, name: 'Настя', level: 4, group: 'E' }, { id: 20, name: 'Даня', level: 4, group: 'E' }, { id: 21, name: 'Веронік', level: 4, group: 'E' }, { id: 22, name: 'Даша', level: 4, group: 'E' }, { id: 23, name: 'Камілла', level: 4, group: 'E' }, { id: 24, name: 'Рома', level: 4, group: 'E' }, { id: 25, name: 'Миланна Киндюк', level: 4, group: 'E' }],
+                    '17:00': [{ id: 27, name: 'Ярік', level: 4, group: 'K' }, { id: 28, name: 'Іван', level: 4, group: 'K' }, { id: 29, name: 'Костя', level: 4, group: 'K' }, { id: 30, name: 'Єлла', level: 4, group: 'K' }, { id: 31, name: 'Паша Іванаєвський', level: 4, group: 'K' }, { id: 32, name: 'Аня', level: 4, group: 'K' }],
+                    '18:00': [{ id: 26, name: 'Ева', level: 5, group: 'I' }, { id: 95, name: 'Дима Комаров', level: 5, group: 'I' }, { id: 43, name: 'Макс', level: 5, group: 'I' }, { id: 84, name: 'Андрей', level: 5, group: 'I' }, { id: 44, name: 'Кароліна', level: 5, group: 'I' }, { id: 83, name: 'Лиза', level: 5, group: 'I' }, { id: 45, name: 'Ангелина', level: 5, group: 'I' }, { id: 47, name: 'Бугрій', level: 5, group: 'I' }],
+                },
+                'П\'ятниця': {
+                     '13:00': [{ id: 57, name: 'Арина', level: 1, group: 'B' }, { id: 58, name: 'Святослав', level: 1, group: 'B' }, { id: 3, name: 'Даша', level: 1, group: 'A' }, { id: 59, name: 'Роман', level: 1, group: 'B' }, { id: 60, name: 'Денис', level: 1, group: 'B' }, { id: 61, name: 'Камінський', level: 1, group: 'B' }, { id: 7, name: 'Ярослав', level: 1, group: 'A' }, { id: 62, name: 'Сидоренко Максим', level: 1, group: 'B' }],
+                    '14:00': [{ id: 63, name: 'Прохор', level: 3, group: 'D' }, { id: 64, name: 'Варя', level: 3, group: 'D' }, { id: 65, name: 'Вика', level: 3, group: 'D' }, { id: 66, name: 'Яна', level: 3, group: 'D' }, { id: 67, name: 'Маша Нова', level: 3, group: 'D' }, { id: 68, name: 'Маша Попова', level: 3, group: 'D' }, { id: 69, name: 'Макс Бондар', level: 3, group: 'D' }, { id: 70, name: 'Мая', level: 3, group: 'D' }],
+                    '15:00': [{ id: 17, name: 'Артем', level: 4, group: 'E' }, { id: 71, name: 'Дарина', level: 3, group: 'F' }, { id: 72, name: 'Микола', level: 3, group: 'F' }, { id: 73, name: 'Вадим Лобач', level: 3, group: 'F' }, { id: 74, name: 'Ярік Новий', level: 3, group: 'F' }, { id: 75, name: 'Глеб', level: 3, group: 'F' }, { id: 76, name: 'Матвей', level: 3, group: 'F' }, { id: 77, name: 'Ульяна', level: 3, group: 'F' }, { id: 78, name: 'Софія', level: 3, group: 'F' }, { id: 79, name: 'Іванка', level: 3, group: 'F' }],
+                    '16:00': [{ id: 80, name: 'Даша', level: 5, group: 'H' }, { id: 81, name: 'Аня Бага', level: 5, group: 'H' }, { id: 95, name: 'Дима Комаров', level: 5, group: 'I' }, { id: 82, name: 'Даня', level: 5, group: 'H' }, { id: 83, name: 'Лиза', level: 5, group: 'H' }, { id: 84, name: 'Андрей', level: 5, group: 'H' }, { id: 86, name: 'Кароліна', level: 5, group: 'H' }],
+                    '17:00': [{ id: 87, name: 'Бойченко', level: 5, group: 'L' }, { id: 88, name: 'Маша', level: 5, group: 'L' }, { id: 89, name: 'Бага марк', level: 5, group: 'L' }, { id: 90, name: 'Марк', level: 5, group: 'L' }, { id: 91, name: 'Ксюша', level: 5, group: 'L' }, { id: 92, name: 'Влад', level: 5, group: 'L' }, { id: 93, name: 'Наташа', level: 5, group: 'L' }],
+                    '19:00': [{ id: 94, name: 'Соня', level: 5, group: 'L' }]
+                }
+            };
+
+            const groupColors = {};
+            const colorPalette = ['#a8d8ea', '#f3d2c1', '#c1e1c1', '#e4dcf1', '#f5f5c6', '#d4a5a5', '#a2d5ab', '#f6eac2', '#b8e0d2', '#ffcda3', '#d5aaff', '#aff8db'];
+
+            function getGroupColor(group) {
+                if (!group) return '#ffffff'; // Default color for no group
+                if (!groupColors[group]) {
+                    groupColors[group] = colorPalette[Object.keys(groupColors).length % colorPalette.length];
+                }
+                return groupColors[group];
+            }
+
+            function renderSchedule() {
+                scheduleGrid.innerHTML = '';
+
+                daysOfWeek.forEach(day => {
+                    const dayColumn = document.createElement('div');
+                    dayColumn.className = 'flex-1 p-2 bg-white rounded-lg shadow';
+
+                    const dayTitle = document.createElement('h2');
+                    dayTitle.className = 'text-xl font-semibold text-center mb-4 pb-2 border-b';
+                    dayTitle.textContent = day;
+                    dayColumn.appendChild(dayTitle);
+
+                    timeSlotsData.forEach(time => {
+                        const timeSlot = document.createElement('div');
+                        timeSlot.className = 'time-slot p-2 border-t';
+                        timeSlot.dataset.day = day;
+                        timeSlot.dataset.time = time;
+
+                        const timeLabel = document.createElement('div');
+                        timeLabel.className = 'text-sm font-medium text-gray-500 mb-2';
+                        timeLabel.textContent = time;
+                        timeSlot.appendChild(timeLabel);
+
+                        const students = scheduleData[day]?.[time] || [];
+                        let groupInfo = '';
+                        if (students.length > 0) {
+                            const groupName = students[0].group || '';
+                            const groupLevel = students[0].level || '';
+                            groupInfo = `<strong>Група ${groupName}</strong> (Рівень ${groupLevel})`;
+                        }
+
+                        if(groupInfo) {
+                            const groupDiv = document.createElement('div');
+                            groupDiv.innerHTML = groupInfo;
+                            groupDiv.className = "text-sm font-bold mb-2 p-1 rounded-md";
+                             if(students.length > 0) {
+                                groupDiv.style.backgroundColor = getGroupColor(students[0].group);
+                             }
+                            timeSlot.appendChild(groupDiv);
+                        }
+
+                        students.forEach(student => {
+                            const card = document.createElement('div');
+                            card.className = 'card bg-gray-50 p-2 mt-1 rounded-md shadow-sm border border-gray-200';
+                            card.textContent = student.name;
+                            card.draggable = true;
+                            card.dataset.studentId = student.id;
+                            card.dataset.day = day;
+                            card.dataset.time = time;
+                            card.addEventListener('click', () => openModalForEdit(student.id, day, time));
+                            timeSlot.appendChild(card);
+                        });
+
+                        dayColumn.appendChild(timeSlot);
+                    });
+
+                    scheduleGrid.appendChild(dayColumn);
+                });
+                addDragDropHandlers();
+            }
+
+            function addDragDropHandlers() {
+                const cards = document.querySelectorAll('.card');
+                const timeSlots = document.querySelectorAll('.time-slot');
+                let draggedCard = null;
+
+                cards.forEach(card => {
+                    card.addEventListener('dragstart', (e) => {
+                        draggedCard = e.target;
+                        setTimeout(() => e.target.classList.add('dragging'), 0);
+                    });
+
+                    card.addEventListener('dragend', (e) => {
+                        e.target.classList.remove('dragging');
+                    });
+                });
+
+                timeSlots.forEach(slot => {
+                    slot.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        slot.classList.add('drag-over');
+                    });
+
+                    slot.addEventListener('dragleave', () => {
+                        slot.classList.remove('drag-over');
+                    });
+
+                    slot.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        slot.classList.remove('drag-over');
+                        if (draggedCard) {
+                            // Update data model
+                            const studentId = parseInt(draggedCard.dataset.studentId);
+                            const fromDay = draggedCard.dataset.day;
+                            const fromTime = draggedCard.dataset.time;
+                            const toDay = e.currentTarget.dataset.day;
+                            const toTime = e.currentTarget.dataset.time;
+
+                            // Find student and remove from old slot
+                            const studentIndex = scheduleData[fromDay][fromTime].findIndex(s => s.id === studentId);
+                            const [student] = scheduleData[fromDay][fromTime].splice(studentIndex, 1);
+
+                            // Add to new slot
+                            if (!scheduleData[toDay]) scheduleData[toDay] = {};
+                            if (!scheduleData[toDay][toTime]) scheduleData[toDay][toTime] = [];
+                            scheduleData[toDay][toTime].push(student);
+
+                            renderSchedule();
+                        }
+                    });
+                });
+            }
+
+            function openModalForEdit(studentId, day, time) {
+                const student = scheduleData[day][time].find(s => s.id === studentId);
+                if (!student) return;
+
+                modalTitle.textContent = "Редагувати дані учня";
+                document.getElementById('student-id').value = student.id;
+                document.getElementById('student-name').value = student.name;
+                document.getElementById('student-level').value = student.level;
+                document.getElementById('student-day').value = day;
+                document.getElementById('student-time').value = time;
+                document.getElementById('student-group').value = student.group || '';
+                deleteBtn.classList.remove('hidden');
+                studentModal.classList.remove('hidden');
+                studentModal.classList.add('flex');
+            }
+
+            function openModalForNew() {
+                modalTitle.textContent = "Додати нового учня";
+                studentForm.reset();
+                document.getElementById('student-id').value = Date.now(); // Simple unique ID
+                deleteBtn.classList.add('hidden');
+                studentModal.classList.remove('hidden');
+                studentModal.classList.add('flex');
+            }
+
+            function closeModal() {
+                studentModal.classList.add('hidden');
+                studentModal.classList.remove('flex');
+            }
+
+            importBtn.addEventListener('click', () => fileInput.click());
+
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                        parseAndLoadData(json);
+                    };
+                    reader.readAsArrayBuffer(file);
+                }
+            });
+
+            function parseAndLoadData(data) {
+                // This is a simplified parser. It assumes a structure similar to your original file.
+                // A more robust implementation would be needed for varied XLSX formats.
+                const newSchedule = {};
+                let currentTime = '';
+
+                // Logic to parse the specific CSV/XLSX structure
+                console.log("Parsing imported data...", data);
+                // Placeholder for parsing logic.
+                alert("Функція імпорту активована, але логіка парсингу потребує налаштування під ваш точний формат XLSX. Поточні дані відображені.");
+                renderSchedule();
+            }
+
+            addStudentBtn.addEventListener('click', openModalForNew);
+            cancelBtn.addEventListener('click', closeModal);
+
+            studentForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const id = parseInt(document.getElementById('student-id').value);
+                const name = document.getElementById('student-name').value;
+                const level = parseInt(document.getElementById('student-level').value);
+                const day = document.getElementById('student-day').value;
+                const time = document.getElementById('student-time').value;
+                const group = document.getElementById('student-group').value;
+
+                // Remove from old position if editing
+                let foundAndRemoved = false;
+                for (const d of daysOfWeek) {
+                    for (const t in scheduleData[d]) {
+                        const index = scheduleData[d][t].findIndex(s => s.id === id);
+                        if (index > -1) {
+                            scheduleData[d][t].splice(index, 1);
+                            foundAndRemoved = true;
+                            break;
+                        }
+                    }
+                    if(foundAndRemoved) break;
+                }
+
+                // Add to new position
+                if (!scheduleData[day]) scheduleData[day] = {};
+                if (!scheduleData[day][time]) scheduleData[day][time] = [];
+                scheduleData[day][time].push({ id, name, level, group });
+
+                closeModal();
+                renderSchedule();
+            });
+
+            deleteBtn.addEventListener('click', () => {
+                 const id = parseInt(document.getElementById('student-id').value);
+                 let foundAndRemoved = false;
+                 for (const d of daysOfWeek) {
+                    for (const t in scheduleData[d]) {
+                        const index = scheduleData[d][t].findIndex(s => s.id === id);
+                        if (index > -1) {
+                            scheduleData[d][t].splice(index, 1);
+                            foundAndRemoved = true;
+                            break;
+                        }
+                    }
+                    if(foundAndRemoved) break;
+                }
+                closeModal();
+                renderSchedule();
+            });
+
+            // Initial render
+            renderSchedule();
+        });
+    </script>
+</body>
+</html>
