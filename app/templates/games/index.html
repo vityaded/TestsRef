@@ -57,7 +57,7 @@
                                         Show QR
                                     </button>
                                     <form method="post" action="{{ url_for('games.delete_game', game_name=game.id) }}" class="d-inline ml-2" onsubmit="return confirm('Are you sure you want to delete this game?');">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                                         <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                                     </form>
                                 </div>

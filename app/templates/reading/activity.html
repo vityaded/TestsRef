@@ -964,7 +964,7 @@
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': '{{ csrf_token }}'
+          'X-CSRFToken': '{{ csrf_token() }}'
         },
         body: JSON.stringify({ completed: true })
       }).catch((error) => {

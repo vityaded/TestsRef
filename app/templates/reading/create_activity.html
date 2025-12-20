@@ -5,7 +5,7 @@
 {% block content %}
 <h1>Create Reading Activity</h1>
 <form method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <div class="form-group">
         <label for="title">Activity Title</label>
         <input type="text" name="title" class="form-control" required>
