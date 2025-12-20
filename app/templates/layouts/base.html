@@ -18,6 +18,11 @@
 
   <header id="main-navbar" class="app-header">
     <div class="header-inner">
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+        <span class="sr-only">Toggle navigation</span>
+      </button>
+
       <a class="brand" href="{{ url_for('main.index') }}">
         <span class="brand-mark">TA</span>
         <span>
@@ -26,28 +31,30 @@
         </span>
       </a>
 
-      <nav class="header-nav">
-        <a class="nav-pill" href="{{ url_for('main.index') }}">Home</a>
-        {% if current_user.is_authenticated %}
-          <a class="nav-pill" href="{{ url_for('tests.add_test') }}">Create</a>
-          <a class="nav-pill" href="{{ url_for('reading.reading_tasks') }}">Reading</a>
-          <a class="nav-pill" href="{{ url_for('vocab.my_vocabulary') }}">Vocabulary</a>
-          <a class="nav-pill" href="{{ url_for('games.index') }}">Games</a>
-          {% if current_user.is_admin %}
-            <a class="nav-pill" href="{{ url_for('admin.admin_panel') }}">Admin</a>
+      <div class="header-collection collapse navbar-collapse" id="navbarContent">
+        <nav class="header-nav">
+          <a class="nav-pill" href="{{ url_for('main.index') }}">Home</a>
+          {% if current_user.is_authenticated %}
+            <a class="nav-pill" href="{{ url_for('tests.add_test') }}">Create</a>
+            <a class="nav-pill" href="{{ url_for('reading.reading_tasks') }}">Reading</a>
+            <a class="nav-pill" href="{{ url_for('vocab.my_vocabulary') }}">Vocabulary</a>
+            <a class="nav-pill" href="{{ url_for('games.index') }}">Games</a>
+            {% if current_user.is_admin %}
+              <a class="nav-pill" href="{{ url_for('admin.admin_panel') }}">Admin</a>
+            {% endif %}
           {% endif %}
-        {% endif %}
-      </nav>
+        </nav>
 
-      <div class="header-actions">
-        {% if current_user.is_authenticated %}
-          <span class="user-chip">Hey, {{ current_user.username }}!</span>
-          <a class="btn-ghost" href="{{ url_for('tests.add_test') }}">New test</a>
-          <a class="btn-game btn-game-secondary" href="{{ url_for('auth.logout') }}">Logout</a>
-        {% else %}
-          <a class="btn-ghost" href="{{ url_for('auth.login') }}">Login</a>
-          <a class="btn-game btn-game-primary" href="{{ url_for('auth.signup') }}">Start playing</a>
-        {% endif %}
+        <div class="header-actions">
+          {% if current_user.is_authenticated %}
+            <span class="user-chip">Hey, {{ current_user.username }}!</span>
+            <a class="btn-ghost" href="{{ url_for('tests.add_test') }}">New test</a>
+            <a class="btn-game btn-game-secondary" href="{{ url_for('auth.logout') }}">Logout</a>
+          {% else %}
+            <a class="btn-ghost" href="{{ url_for('auth.login') }}">Login</a>
+            <a class="btn-game btn-game-primary" href="{{ url_for('auth.signup') }}">Start playing</a>
+          {% endif %}
+        </div>
       </div>
     </div>
   </header>
