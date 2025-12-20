@@ -1,0 +1,41 @@
+:root {
+  --bg: #070910;
+  --panel: #0f1420;
+  --panel-strong: #121a2c;
+  --panel-muted: #18243a;
+  --text: #eef2ff;
+  --muted: #b6c0d9;
+
+  --primary: #7c3aed;
+  --secondary: #22c55e;
+  --warning: #fbbf24;
+  --danger: #ef4444;
+  --success: #22c55e;
+
+  --accent-a: #1fb2a6;
+  --accent-b: #38bdf8;
+  --accent-c: #f472b6;
+  --accent-d: #f97316;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --divider: rgba(255, 255, 255, 0.12);
+
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-sm: 10px;
+  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 10px 35px rgba(0, 0, 0, 0.3);
+
+  --font-display: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+.bg-texture {
+  background: radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.25), transparent 35%),
+    radial-gradient(circle at 80% 0%, rgba(34, 197, 94, 0.16), transparent 40%),
+    linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(56, 189, 248, 0.08));
+}
+
+.bg-gradient {
+  background: linear-gradient(140deg, #0c1220, #0b1120 40%, #0e172a 100%);
+}

@@ -4,129 +4,98 @@
   <meta charset="UTF-8">
   <title>{% block title %}Test App{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <!-- Bootstrap CSS -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-  <!-- Google Fonts -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap">
-  <!-- Custom CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='components.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  {% block styles %}{% endblock %}
 </head>
-<body>
-  <!-- Navbar -->
-  <nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <a class="navbar-brand" href="{{ url_for('main.index') }}">Test App</a>
-    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav mr-auto">
+<body class="app-body bg-gradient">
+  <div class="app-surface" aria-hidden="true"></div>
+
+  <header class="app-header">
+    <div class="header-inner">
+      <a class="brand" href="{{ url_for('main.index') }}">
+        <span class="brand-mark">TA</span>
+        <span>
+          <div>Test App</div>
+          <div class="brand-subtitle">Play. Learn. Level up.</div>
+        </span>
+      </a>
+
+      <nav class="header-nav">
+        <a class="nav-pill" href="{{ url_for('main.index') }}">Home</a>
         {% if current_user.is_authenticated %}
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('tests.add_test') }}">Add Test</a>
-          </li>
-          <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('reading.reading_tasks') }}">Reading</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('vocab.my_vocabulary') }}">Vocabulary</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('games.index') }}">Games</a>
-          </li>
+          <a class="nav-pill" href="{{ url_for('tests.add_test') }}">Create</a>
+          <a class="nav-pill" href="{{ url_for('reading.reading_tasks') }}">Reading</a>
+          <a class="nav-pill" href="{{ url_for('vocab.my_vocabulary') }}">Vocabulary</a>
+          <a class="nav-pill" href="{{ url_for('games.index') }}">Games</a>
           {% if current_user.is_admin %}
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('admin.admin_panel') }}">Admin Panel</a>
-            </li>
+            <a class="nav-pill" href="{{ url_for('admin.admin_panel') }}">Admin</a>
           {% endif %}
         {% endif %}
-      </ul>
-      <ul class="navbar-nav ml-auto">
+      </nav>
+
+      <div class="header-actions">
         {% if current_user.is_authenticated %}
-          <li class="nav-item">
-            <span class="navbar-text">Hello, {{ current_user.username }}!</span>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('auth.logout') }}">Logout</a>
-          </li>
+          <span class="user-chip">Hey, {{ current_user.username }}!</span>
+          <a class="btn-ghost" href="{{ url_for('tests.add_test') }}">New test</a>
+          <a class="btn-game btn-game-secondary" href="{{ url_for('auth.logout') }}">Logout</a>
         {% else %}
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('auth.login') }}">Login</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('auth.signup') }}">Sign Up</a>
-          </li>
+          <a class="btn-ghost" href="{{ url_for('auth.login') }}">Login</a>
+          <a class="btn-game btn-game-primary" href="{{ url_for('auth.signup') }}">Start playing</a>
         {% endif %}
-      </ul>
+      </div>
     </div>
-  </nav>
+  </header>
 
-  <!-- Main container -->
-  <div class="container mt-4">
-    <!-- Flash messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="alert-container">
-          {% for category, message in messages %}
-            <div class="alert alert-{{ category }} mt-3">{{ message }}</div>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
+  <main class="page-shell">
+    <div class="page-content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="toast-stack" id="flash-messages">
+            {% for category, message in messages %}
+              <div class="flash-toast flash-{{ category }} shadow-lg" role="status">
+                <div class="toast-body">
+                  <div>
+                    <div class="toast-title">{{ category|capitalize }}</div>
+                    <div>{{ message }}</div>
+                  </div>
+                  <button class="toast-close" type="button" aria-label="Dismiss">&times;</button>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
 
-    <!-- Content block -->
-    {% block content %}{% endblock %}
-  </div>
+      {% block content %}{% endblock %}
+    </div>
+  </main>
 
-  <!-- Big '+' button with dropdown -->
   {% if current_user.is_authenticated %}
-  <div class="fixed-action-btn">
-    <div class="dropdown">
-      <button class="btn btn-primary btn-lg rounded-circle" type="button" id="createDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-        +
+    <div class="floating-action-btn dropdown">
+      <button class="btn-game btn-game-primary dropdown-toggle" type="button" id="createDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+        + Quick create
       </button>
       <div class="dropdown-menu dropdown-menu-right" aria-labelledby="createDropdown">
         <a class="dropdown-item" href="{{ url_for('tests.add_test') }}">Add Test</a>
         <a class="dropdown-item" href="{{ url_for('reading.create_activity') }}">Add Reading Activity</a>
       </div>
     </div>
-  </div>
   {% endif %}
 
-  <!-- Footer -->
-  <footer class="bg-light text-center py-3 mt-4">
-    <p>© Test App 2024</p>
+  <footer class="app-footer">
+    <p>© Test App 2024. Built for playful learning.</p>
   </footer>
 
-  <!-- Scripts block -->
   {% block scripts %}
-    <!-- Include jQuery, Popper.js, and Bootstrap JS -->
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <!-- Include Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-
-  {% endblock %}
-
-  {% block styles %}
-    <style>
-      /* Styles for the fixed action button */
-      .fixed-action-btn {
-        position: fixed;
-        bottom: 30px;
-        right: 30px;
-        z-index: 100; /* Ensure it appears above other elements */
-      }
-
-      .btn-lg.rounded-circle {
-        width: 70px;
-        height: 70px;
-        font-size: 36px;
-        line-height: 50px;
-        text-align: center;
-        padding: 0;
-      }
-    </style>
-
+    <script defer src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script defer src="{{ url_for('static', filename='app.js') }}"></script>
   {% endblock %}
 </body>
 </html>

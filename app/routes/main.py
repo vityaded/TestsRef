@@ -10,7 +10,8 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/')
 def index():
     books = Book.query.all()
-    return render_template('main/index.html', books=books)
+    total_tests = sum(len(book.tests) for book in books)
+    return render_template('main/index.html', books=books, total_tests=total_tests)
 
 @main_bp.route('/book/<int:book_id>')
 def book_tests(book_id):
