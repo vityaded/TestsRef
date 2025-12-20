@@ -1,41 +1,54 @@
 :root {
-  --bg: #070910;
-  --panel: #0f1420;
-  --panel-strong: #121a2c;
-  --panel-muted: #18243a;
-  --text: #eef2ff;
-  --muted: #b6c0d9;
+  /* --- Color Palette --- */
 
-  --primary: #7c3aed;
-  --secondary: #22c55e;
-  --warning: #fbbf24;
-  --danger: #ef4444;
-  --success: #22c55e;
+  /* Backgrounds */
+  --bg: #fef9e7;
+  --bg-card: #ffffff;
+  --bg-highlight: #fff5c4;
+  --panel: #fff3d6;
+  --panel-strong: #ffe59a;
+  --panel-muted: #fbe7b2;
 
-  --accent-a: #1fb2a6;
-  --accent-b: #38bdf8;
-  --accent-c: #f472b6;
-  --accent-d: #f97316;
+  /* Text */
+  --text: #1e392a;
+  --muted: #5d6d7e;
+  --text-muted: #5d6d7e;
+  --text-light: #ffffff;
 
-  --border: rgba(255, 255, 255, 0.08);
-  --divider: rgba(255, 255, 255, 0.12);
+  /* Primary palette */
+  --primary: #27ae60;
+  --primary-hover: #1e8449;
+  --secondary: #f1c40f;
+  --secondary-hover: #d4ac0d;
+  --accent: #e74c3c;
+  --accent-hover: #c0392b;
 
+  /* Status aliases */
+  --warning: var(--secondary);
+  --danger: var(--accent);
+  --success: var(--primary);
+
+  /* UI tokens */
+  --border: #d5d8dc;
+  --divider: #e6e9ed;
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.12);
   --radius-lg: 18px;
   --radius-md: 12px;
   --radius-sm: 10px;
-  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.45);
-  --shadow-card: 0 10px 35px rgba(0, 0, 0, 0.3);
 
+  /* Typography */
   --font-display: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
 .bg-texture {
-  background: radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.25), transparent 35%),
-    radial-gradient(circle at 80% 0%, rgba(34, 197, 94, 0.16), transparent 40%),
-    linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(56, 189, 248, 0.08));
+  background: radial-gradient(circle at 20% 20%, rgba(241, 196, 15, 0.25), transparent 38%),
+    radial-gradient(circle at 78% 8%, rgba(39, 174, 96, 0.2), transparent 42%),
+    linear-gradient(135deg, rgba(241, 196, 15, 0.15), rgba(231, 76, 60, 0.08));
 }
 
 .bg-gradient {
-  background: linear-gradient(140deg, #0c1220, #0b1120 40%, #0e172a 100%);
+  background: linear-gradient(150deg, #fff7d6, #fef9e7 55%, #fff0b3 100%);
 }
