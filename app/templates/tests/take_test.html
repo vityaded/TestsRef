@@ -3,81 +3,156 @@
 {% block title %}Take Test - {{ test.name }}{% endblock %}
 
 {% block content %}
-  <h1 class="my-4">{{ test.name }}</h1>
-
-  {% if time_limit %}
-    <div class="alert alert-info" id="timer">
-      Time Remaining: <span id="time">Loading...</span>
+  <section class="panel panel-strong quiz-shell">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div>
+        <div class="eyebrow mb-2">Quiz challenge</div>
+        <h1 class="mb-1">{{ test.name }}</h1>
+        <div class="quiz-meta">
+          <span class="pill">Questions: {{ total }}</span>
+          <span class="pill">Mode: {{ 'Arrange tiles' if test_type == 'drag_and_drop' else 'Answer & fill' }}</span>
+          {% if time_limit %}
+            <span class="pill">Time limit: {{ time_limit }} min</span>
+          {% endif %}
+        </div>
+      </div>
+      {% if score is not none %}
+        {% set percentage = (score / total * 100) if total else 0 %}
+        <div class="badge-score">Score: {{ score }} / {{ total }} ({{ '%.0f' % percentage }}%)</div>
+      {% endif %}
     </div>
-  {% endif %}
 
-  {% if test_type == 'drag_and_drop' %}
-    <form method="post" id="test-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-
-      <p>Drag and drop the tiles into the correct order:</p>
-
-      <div class="tile-container">
-        <ul id="sortable" class="list-group">
-          {% for item in processed_content %}
-            <li class="tile list-group-item {{ item.class if score is not none else '' }}" data-id="{{ item.id }}">
-              <div class="tile-content">{{ item.content|safe }}</div>
-            </li>
-          {% endfor %}
-        </ul>
+    {% if time_limit %}
+      <div class="toast-body mt-3" id="timer">
+        <div>
+          <div class="toast-title">Time remaining</div>
+          <div id="time">Loading...</div>
+        </div>
       </div>
-
-      <!-- Hidden input to store the order -->
-      <input type="hidden" name="item_order" id="item_order">
-
-      {% if score is none %}
-        <button type="submit" class="btn btn-primary mt-3">Submit Test</button>
-      {% endif %}
-    </form>
-
-    {% if score is not none %}
-      <h2 class="my-4">Your Score: {{ score }} / {{ total }}</h2>
-
-      <!-- Display user's order after submission -->
-      <h3>Your Submitted Order:</h3>
-      <ol>
-        {% for item in processed_content %}
-          <li class="{{ item.class }}">{{ item.content|safe }}</li>
-        {% endfor %}
-      </ol>
-
-      <!-- Display correct order after submission -->
-      <h3>Correct Order:</h3>
-      <ol>
-        {% for item_id in correct_order %}
-          <li>{{ correct_answers[item_id]|safe }}</li>
-        {% endfor %}
-      </ol>
-
-      <a href="{{ url_for('main.index') }}" class="btn btn-primary mt-3">Back to Home</a>
     {% endif %}
-  {% else %}
-    <form method="post" id="standard-test-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      
-      <div class="form-group">
-        {% for question in processed_content %}
-          <div class="mb-3">
-            {{ question|safe }}
+
+    {% if test_type == 'drag_and_drop' %}
+      <form method="post" id="test-form" class="mt-3" data-quiz-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+        <p class="mb-2">Drag and drop the tiles into the correct order:</p>
+
+        <div class="draggable-tiles">
+          <ul id="sortable" class="list-unstyled mb-0">
+            {% for item in processed_content %}
+              <li class="tile {{ item.class if score is not none else '' }}" data-id="{{ item.id }}">
+                <div class="tile-content">{{ item.content|safe }}</div>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <input type="hidden" name="item_order" id="item_order">
+
+        {% if score is none %}
+          <div class="quiz-nav mt-3">
+            <a href="{{ url_for('main.index') }}" class="btn-ghost">Back to home</a>
+            <button type="submit" class="btn-game btn-game-primary">Submit test</button>
           </div>
-        {% endfor %}
-      </div>
+        {% endif %}
+      </form>
 
-      {% if score is none %}
-        <button type="submit" class="btn btn-primary">Submit Test</button>
-      {% else %}
-        <h2 class="my-4">Your Score: {{ score }} / {{ total }}</h2>
-        <a href="{{ url_for('main.index') }}" class="btn btn-primary mt-3">Back to Home</a>
+      {% if score is not none %}
+        <div class="quiz-score-card mt-3">
+          <div class="panel">
+            <div class="toast-title mb-1">Your score</div>
+            <div class="score-big">{{ score }} / {{ total }}</div>
+          </div>
+          <div class="panel">
+            <div class="toast-title mb-1">What to improve</div>
+            <p class="mb-2 text-muted">Review the order below and retry to build muscle memory.</p>
+            <div class="hero-actions">
+              <a href="{{ url_for('tests.take_test', test_id=test.id) }}" class="btn-game btn-game-primary">Try again</a>
+              <a href="{{ url_for('main.index') }}" class="btn-ghost">Back to home</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="result-card mt-3">
+          <h3>Your submitted order</h3>
+          <ol>
+            {% for item in processed_content %}
+              <li class="{{ item.class }}">{{ item.content|safe }}</li>
+            {% endfor %}
+          </ol>
+          <div class="divider"></div>
+          <h3>Correct order</h3>
+          <ol>
+            {% for item_id in correct_order %}
+              <li>{{ correct_answers[item_id]|safe }}</li>
+            {% endfor %}
+          </ol>
+        </div>
       {% endif %}
-    </form>
-  {% endif %}
+    {% else %}
+      <form
+        method="post"
+        id="standard-test-form"
+        class="mt-3"
+        data-quiz-wizard
+        data-quiz-form
+        data-completed="{{ 'true' if score is not none else 'false' }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
-  <a href="{{ url_for('main.index') }}" class="btn btn-link">Back to Home</a>
+        {% if score is none %}
+          <div class="quiz-progress mb-3">
+            <div class="progress-wrap">
+              <div class="progress-bar question-progress-bar" style="width: {{ 100 / total if total else 0 }}%"></div>
+            </div>
+            <span class="question-progress-text">Question 1 / {{ total }}</span>
+          </div>
+        {% endif %}
+
+        <div class="question-grid">
+          {% for question in processed_content %}
+            <div class="question-card {% if score is not none %}post-submit{% elif loop.first %}is-active{% endif %}" data-question-step="{{ loop.index0 }}">
+              <div class="question-number">Question {{ loop.index }}</div>
+              <div class="question-body">{{ question|safe }}</div>
+            </div>
+          {% endfor %}
+        </div>
+
+        {% if score is none %}
+          <div class="quiz-nav mt-3">
+            <button type="button" class="btn-game btn-game-secondary" data-quiz-prev>Previous</button>
+            <div class="d-flex align-items-center gap-2">
+              <a href="{{ url_for('main.index') }}" class="btn-ghost">Back to home</a>
+              <button type="button" class="btn-game btn-game-primary" data-quiz-next>Next question</button>
+            </div>
+            <button type="submit" class="sr-only" data-quiz-submit>Submit answers</button>
+          </div>
+        {% else %}
+          {% set percentage = (score / total * 100) if total else 0 %}
+          <div class="quiz-score-card mt-3">
+            <div class="panel">
+              <div class="toast-title mb-1">Your score</div>
+              <div class="score-big">{{ score }} / {{ total }}</div>
+              <p class="text-muted mb-0">Accuracy: {{ '%.0f' % percentage }}%</p>
+            </div>
+            <div class="panel">
+              <div class="toast-title mb-1">Feedback</div>
+              {% if percentage >= 90 %}
+                <p class="mb-0">Amazing! You're flying through these levels.</p>
+              {% elif percentage >= 70 %}
+                <p class="mb-0">Great job—one more run will lock it in.</p>
+              {% else %}
+                <p class="mb-0">Keep going—replaying will sharpen your streak.</p>
+              {% endif %}
+              <div class="hero-actions mt-2">
+                <a href="{{ url_for('tests.take_test', test_id=test.id) }}" class="btn-game btn-game-primary">Replay</a>
+                <a href="{{ url_for('main.index') }}" class="btn-ghost">Back to home</a>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      </form>
+    {% endif %}
+  </section>
 {% endblock %}
 
 {% block scripts %}
@@ -99,7 +174,7 @@
 
         if (distance <= 0) {
           clearInterval(x);
-          document.querySelector("form").submit();
+          document.querySelector("[data-quiz-form]")?.submit();
         }
       }, 1000);
     } else {
@@ -110,12 +185,11 @@
 
   {% if test_type == 'drag_and_drop' %}
   <!-- Include jQuery before jQuery UI -->
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <!-- Include jQuery UI for sortable functionality -->
-  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+  <script defer src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 
   <!-- Include jQuery UI Touch Punch for mobile touch support -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui-touch-punch/0.2.3/jquery.ui.touch-punch.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui-touch-punch/0.2.3/jquery.ui.touch-punch.min.js"></script>
 
   <script>
     $(function() {
@@ -138,15 +212,4 @@
   {% endif %}
 {% endblock %}
 
-{% block styles %}
-  <style>
-    .correct {
-      background-color: #d4edda !important;
-      border-color: #c3e6cb !important;
-    }
-    .incorrect {
-      background-color: #f8d7da !important;
-      border-color: #f5c6cb !important;
-    }
-  </style>
-{% endblock %}
+{% block styles %}{% endblock %}
