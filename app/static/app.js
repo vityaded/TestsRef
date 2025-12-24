@@ -117,7 +117,26 @@ function setupAutocompleteInputs() {
   });
 }
 
+function setupBootstrapModals() {
+  document.querySelectorAll(".modal").forEach((modal) => {
+    if (modal.parentElement !== document.body) {
+      document.body.appendChild(modal);
+    }
+  });
+
+  if (window.jQuery) {
+    window.jQuery(document).on("hidden.bs.modal", ".modal", function () {
+      const $ = window.jQuery;
+      if ($(".modal.show").length === 0) {
+        $(".modal-backdrop").remove();
+        $("body").removeClass("modal-open").css("padding-right", "");
+      }
+    });
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  setupBootstrapModals();
   setupFlashToasts();
   setupQuizWizard();
   setupAutocompleteInputs();
