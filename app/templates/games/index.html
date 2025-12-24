@@ -231,32 +231,36 @@
 {% block scripts %}
   {{ super() }}
   <script>
-    (function ($) {
-      var modal = $('#gameQrModal');
-      var qrImage = $('#gameQrImage');
+    document.addEventListener("DOMContentLoaded", function () {
+      if (!window.jQuery) return;
 
-      modal.on('show.bs.modal', function (event) {
-        var button = $(event.relatedTarget);
-        var url = button.data('game-url');
-        var name = button.data('game-name');
-        var qrUrl = button.data('qr-url');
+      (function ($) {
+        var modal = $('#gameQrModal');
+        var qrImage = $('#gameQrImage');
 
-        $('#gameQrTitle').text(name);
+        modal.on('show.bs.modal', function (event) {
+          var button = $(event.relatedTarget);
+          var url = button.data('game-url');
+          var name = button.data('game-name');
+          var qrUrl = button.data('qr-url');
 
-        if (qrUrl) {
-          qrImage.attr('src', qrUrl + '?_=' + new Date().getTime());
-          qrImage.attr('alt', 'QR code for ' + name);
-        } else {
+          $('#gameQrTitle').text(name);
+
+          if (qrUrl) {
+            qrImage.attr('src', qrUrl + '?_=' + new Date().getTime());
+            qrImage.attr('alt', 'QR code for ' + name);
+          } else {
+            qrImage.attr('src', '').attr('alt', '');
+          }
+          $('#gameQrLink').attr('href', url).text(url);
+        });
+
+        modal.on('hidden.bs.modal', function () {
           qrImage.attr('src', '').attr('alt', '');
-        }
-        $('#gameQrLink').attr('href', url).text(url);
-      });
-
-      modal.on('hidden.bs.modal', function () {
-        qrImage.attr('src', '').attr('alt', '');
-        $('#gameQrLink').attr('href', '').text('');
-        $('#gameQrTitle').text('');
-      });
-    })(jQuery);
+          $('#gameQrLink').attr('href', '').text('');
+          $('#gameQrTitle').text('');
+        });
+      })(window.jQuery);
+    });
   </script>
 {% endblock %}
